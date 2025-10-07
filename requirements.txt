@@ -1,0 +1,7 @@
+streamlit==1.38.0
+pandas==2.2.2
+gspread==6.1.4
+google-auth==2.34.0
+plotly==5.23.0
+pytz==2024.1
+streamlit-option-menu==0.3.12
