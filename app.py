@@ -363,4 +363,3 @@ elif selected == "Arbeidet på":
     two_cols("Arbeidet på (i dag) per merke", brand_bar2, "Arbeidet på (i dag) per status", status_bar2)
 
 st.markdown("---")
-st.caption("Bygget med Streamlit • Sikker innlogging • Data fra Google Sheets • Cache 5 min")
