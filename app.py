@@ -36,34 +36,54 @@ AUTH_PASS = st.secrets["auth"]["password"]
 # ---------------------
 # Styles (CSS)
 # ---------------------
-st.markdown("""
+KPI_HEIGHT = 140  # endre ved behov (px)
+
+st.markdown(f"""
 <style>
-.kpi-card {
-  padding: 18px 22px;
+:root {{
+  --kpi-height: {KPI_HEIGHT}px;
+}}
+
+.kpi-card {{
+  height: var(--kpi-height);          /* ← lik høyde på alle kort */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;            /* vertikal sentrering */
+  background: #ffffff;                /* hvit bakgrunn i begge tema */
+  color: #111827 !important;          /* mørk tekst på kortet */
   border-radius: 16px;
-  background: #ffffff;             /* behold hvite kort i begge tema */
-  color: #111827 !important;       /* mørk tekst på kortet */
   box-shadow: 0 6px 20px rgba(0,0,0,0.08);
   border: 1px solid rgba(0,0,0,0.04);
-}
-.kpi-label { 
-  font-size: 0.95rem; 
-  color: #6b7280 !important;       /* grå label, tydelig på hvit bakgrunn */
-  margin-bottom: 6px; 
-}
-.kpi-value { 
-  font-size: 2.4rem; 
-  font-weight: 700; 
+  padding: 18px 22px;
+}}
+
+.kpi-label {{
+  font-size: 0.95rem;
+  color: #6b7280 !important;
+  margin-bottom: 6px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}}
+
+.kpi-value {{
+  font-size: 2.4rem;
+  font-weight: 700;
   line-height: 1.1;
-  color: #111827 !important;       /* tving mørk verdi-tekst */
-}
-.kpi-sub   { 
-  font-size: 0.9rem; 
-  color: #10b981 !important;       /* grønn “sub” */
-  margin-top: 6px; 
-  font-weight: 600; 
-}
-.sidebar-footer { font-size: 12px; color: #9CA3AF; padding: 12px 10px; }
+  color: #111827 !important;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}}
+
+.kpi-sub {{
+  font-size: 0.9rem;
+  color: #10b981 !important;
+  margin-top: 6px;
+  font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}}
+
+/* litt lavere kort på veldig smale skjermer */
+@media (max-width: 640px) {{
+  :root {{ --kpi-height: {max(100, KPI_HEIGHT-30)}px; }}
+}}
 </style>
 """, unsafe_allow_html=True)
 
