@@ -16,7 +16,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-# --- Topprad: tittel + dato oppe til høyre ---
+# --- Toppheader: tittel + dato til høyre ---
 st.markdown("""
 <style>
 .header-row{
@@ -26,10 +26,9 @@ st.markdown("""
 .header-title{ font-size:2.2rem; font-weight:800; line-height:1; }
 .page-date{
   font-size:0.95rem; font-weight:600; letter-spacing:.2px;
-  color:#9CA3AF;                           /* funker i dark/lys */
-  padding:6px 10px; border-radius:12px;
+  color:#9CA3AF; padding:6px 10px; border-radius:12px;
   border:1px solid rgba(0,0,0,.08);
-  background: rgba(255,255,255,.06);       /* subtil “badge” */
+  background: rgba(255,255,255,.06);
 }
 </style>
 """, unsafe_allow_html=True)
@@ -38,8 +37,8 @@ def page_header(title: str, dateobj):
     st.markdown(
         f"""
         <div class="header-row">
-            <div class="header-title">{title}</div>
-            <div class="page-date">{dateobj:%d.%m.%Y}</div>
+          <div class="header-title">{title}</div>
+          <div class="page-date">{dateobj:%d.%m.%Y}</div>
         </div>
         """,
         unsafe_allow_html=True
@@ -248,7 +247,7 @@ with st.sidebar:
 # ---------------------
 # Header
 # ---------------------
-st.title(selected)
+st.title(selected, today)
 
 # ---------------------
 # Views
