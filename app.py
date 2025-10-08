@@ -247,7 +247,7 @@ with st.sidebar:
 # ---------------------
 # Header
 # ---------------------
-st.title(selected, today)
+page_header(selected, today)
 
 # ---------------------
 # Views
