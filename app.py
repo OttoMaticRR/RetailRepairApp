@@ -289,15 +289,15 @@ if selected == "Reparert":
 
     two_cols("Repairs by Brand", brand_bar, "Repairs by Technician", tech_pie)
     with st.expander("Show tables", expanded=False):
-    c1, c2 = st.columns(2)
+        c1, c2 = st.columns(2)
 
-    tbl_brand = _counts_table(repaired_today["Product brand"], "Brand", "Repairs")
-    c1.markdown("#### Repairs per Brand")
-    c1.dataframe(tbl_brand, use_container_width=True, hide_index=True)
+        tbl_brand = _counts_table(repaired_today["Product brand"], "Brand", "Repairs")
+        c1.markdown("#### Repairs per Brand")
+        c1.dataframe(tbl_brand, use_container_width=True, hide_index=True)
 
-    tbl_tech = _counts_table(repaired_today["Service technician"], "Technician", "Repairs")
-    c2.markdown("#### Repairs per Technician")
-    c2.dataframe(tbl_tech, use_container_width=True, hide_index=True)
+        tbl_tech = _counts_table(repaired_today["Service technician"], "Technician", "Repairs")
+        c2.markdown("#### Repairs per Technician")
+        c2.dataframe(tbl_tech, use_container_width=True, hide_index=True)
 
 
 elif selected == "Innlevert":
@@ -382,14 +382,14 @@ elif selected == "Arbeidet på":
 
     two_cols("Arbeidet på (i dag) per merke", brand_bar2, "Arbeidet på (i dag) per status", status_bar2)
     with st.expander("Show tables", expanded=False):
-    c1, c2 = st.columns(2)
+        c1, c2 = st.columns(2)
 
-    tbl_brand2 = _counts_table(worked_today["Product brand"], "Brand", "Enheter")
-    c1.markdown("#### Arbeidet på (i dag) per merke")
-    c1.dataframe(tbl_brand2, use_container_width=True, hide_index=True)
+        tbl_brand2 = _counts_table(worked_today["Product brand"], "Brand", "Enheter")
+        c1.markdown("#### Arbeidet på (i dag) per merke")
+        c1.dataframe(tbl_brand2, use_container_width=True, hide_index=True)
 
-    tbl_tech2 = _counts_table(worked_today["Service technician"], "Technician", "Enheter")
-    c2.markdown("#### Arbeidet på (i dag) per tekniker")
-    c2.dataframe(tbl_tech2, use_container_width=True, hide_index=True)
+        tbl_tech2 = _counts_table(worked_today["Service technician"], "Technician", "Enheter")
+        c2.markdown("#### Arbeidet på (i dag) per tekniker")
+        c2.dataframe(tbl_tech2, use_container_width=True, hide_index=True)
 
 st.markdown("---")
