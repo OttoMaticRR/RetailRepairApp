@@ -36,21 +36,21 @@ AUTH_PASS = st.secrets["auth"]["password"]
 # ---------------------
 # Styles (CSS)
 # ---------------------
-KPI_HEIGHT = 140  # endre ved behov (px)
+KPI_HEIGHT = 140  # ev. justér
 
 st.markdown(f"""
 <style>
-:root {{
-  --kpi-height: {KPI_HEIGHT}px;
-}}
+:root {{ --kpi-height: {KPI_HEIGHT}px; }}
 
 .kpi-card {{
-  height: var(--kpi-height);          /* ← lik høyde på alle kort */
+  height: var(--kpi-height);
   display: flex;
   flex-direction: column;
-  justify-content: center;            /* vertikal sentrering */
-  background: #ffffff;                /* hvit bakgrunn i begge tema */
-  color: #111827 !important;          /* mørk tekst på kortet */
+  justify-content: center;       /* vertikalt midtstilt */
+  align-items: center;            /* horisontalt midtstilt */
+  text-align: center;             /* midtstill tekst */
+  background: #ffffff;
+  color: #111827 !important;
   border-radius: 16px;
   box-shadow: 0 6px 20px rgba(0,0,0,0.08);
   border: 1px solid rgba(0,0,0,0.04);
@@ -61,7 +61,7 @@ st.markdown(f"""
   font-size: 0.95rem;
   color: #6b7280 !important;
   margin-bottom: 6px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  text-align: center;
 }}
 
 .kpi-value {{
@@ -69,7 +69,7 @@ st.markdown(f"""
   font-weight: 700;
   line-height: 1.1;
   color: #111827 !important;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  text-align: center;
 }}
 
 .kpi-sub {{
@@ -77,12 +77,7 @@ st.markdown(f"""
   color: #10b981 !important;
   margin-top: 6px;
   font-weight: 600;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}}
-
-/* litt lavere kort på veldig smale skjermer */
-@media (max-width: 640px) {{
-  :root {{ --kpi-height: {max(100, KPI_HEIGHT-30)}px; }}
+  text-align: center;
 }}
 </style>
 """, unsafe_allow_html=True)
