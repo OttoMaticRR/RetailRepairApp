@@ -123,7 +123,7 @@ def require_login():
     with st.sidebar:
         st.markdown("### 🔐 Login")
         with st.form("login_form", clear_on_submit=False):
-            u = st.text_input("Brukernavn", value="", placeholder="RRDashboard")
+            u = st.text_input("Brukernavn", value="", placeholder="Brukernavn")
             p = st.text_input("Passord", value="", type="password", placeholder="••••••••••")
             ok = st.form_submit_button("Logg inn")
         if ok:
@@ -248,8 +248,7 @@ with st.sidebar:
 # ---------------------
 # Header
 # ---------------------
-st.title(selected)
-st.caption(f"Dato: {today} • Tidssone: {TZ_NAME} • Oppdateres hver 5. min (cache)")
+st.title(selected, today)
 
 # ---------------------
 # Views
