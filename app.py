@@ -439,12 +439,12 @@ elif selected == "Inhouse":
     # Vis 3 KPI-kort: Antall • Topp status • Topp merke
     k1, k2, k3 = st.columns(3)
     with k1:
-        kpi("Totalt inhouse (ingen reparasjonsdato)", total_inhouse)
+        kpi("Totalt inhouse", total_inhouse)
     with k2:
-        kpi("Topp status (inhouse)", top_status,
+        kpi("Topp status", top_status,
             sub=(f"{top_status_count} enheter" if top_status != "-" else None))
     with k3:
-        kpi("Topp merke (inhouse)", top_brand,
+        kpi("Topp merke", top_brand,
             sub=(f"{top_brand_count} enheter" if top_brand != "-" else None))
 
     # --- Diagrammer ---
