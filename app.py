@@ -392,7 +392,7 @@ elif selected == "Arbeidet på":
         c2.markdown("#### Arbeidet på (i dag) per tekniker")
         c2.dataframe(tbl_tech2, use_container_width=True, hide_index=True)
 
-    elif selected == "Historikk":
+elif selected == "Historikk":
     # Aggreger antall reparerte per dato (fra "Service repair date")
     rep_series = df["Service repair date"]
 
