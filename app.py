@@ -324,7 +324,10 @@ elif selected == "Innlevert":
     two_cols("Innlevert per merke (alle)", brand_bar, "Innlevert per statusdato (alle)", date_bar)
 
 elif selected == "Inhouse":
-    inhouse = df[df["Service repair date"].isna()]
+    # Alt uten reparasjonsdato er "inhouse"
+    inhouse = df[df["Service repair date"].isna()].copy()
+
+    # KPI-er (topp merke)
     if not inhouse.empty:
         tb = inhouse["Product brand"].value_counts()
         top_brand, top_brand_count = tb.index[0], int(tb.iloc[0])
@@ -332,21 +335,51 @@ elif selected == "Inhouse":
         top_brand, top_brand_count = "-", 0
 
     k1, k2 = st.columns(2)
-    with k1: kpi("Totalt inhouse (ingen reparasjonsdato)", len(inhouse))
-    with k2: kpi("Topp merke (inhouse)", top_brand, sub=(f"{top_brand_count} enheter" if top_brand != "-" else None))
+    with k1:
+        kpi("Totalt inhouse (ingen reparasjonsdato)", len(inhouse))
+    with k2:
+        kpi("Topp merke (inhouse)", top_brand,
+            sub=(f"{top_brand_count} enheter" if top_brand != "-" else None))
 
     if not inhouse.empty:
-        status_bar = px.bar(
-            inhouse.groupby("Service status").size().reset_index(name="Antall"),
-            x="Service status", y="Antall", text="Antall"
-        ).update_layout(xaxis_title="Status", yaxis_title="Antall")
-        date_bar = px.bar(
-            inhouse.assign(date=inhouse["Service status date"].dt.date).groupby("date").size().reset_index(name="Antall"),
-            x="date", y="Antall", text="Antall"
-        ).update_layout(xaxis_title="Statusdato", yaxis_title="Antall")
+        # ---------- GRUPPER STATUS ----------
+        # Stripp whitespace og casefold for robust matching
+        stat = inhouse["Service status"].astype(str).str.strip()
+        low  = stat.str.casefold()
+
+        # Kun de som begynner med "Venter på ekstern part"
+        mask = low.str.match(r"^venter på ekstern part\b")
+
+        # Lag en gruppert statuskolonne
+        inhouse["status_group"] = stat.where(~mask, "Venter på ekstern part")
+
+        # Søyle: inhouse per (gruppert) status
+        status_df = (
+            inhouse["status_group"]
+            .value_counts()
+            .reset_index()
+            .rename(columns={"index": "Status", "status_group": "Antall"})
+            .sort_values("Antall", ascending=False)
+        )
+        status_bar = px.bar(status_df, x="Status", y="Antall", text="Antall")
+        status_bar.update_layout(xaxis_title="Status", yaxis_title="Antall")
+        status_bar.update_traces(textposition="outside", cliponaxis=False)
+
+        # Søyle: inhouse per statusdato (uendret)
+        date_df = (
+            inhouse.assign(date=inhouse["Service status date"].dt.date)
+                   .groupby("date").size().reset_index(name="Antall")
+                   .sort_values("date")
+        )
+        date_bar = px.bar(date_df, x="date", y="Antall", text="Antall")
+        date_bar.update_layout(xaxis_title="Statusdato", yaxis_title="Antall")
+        date_bar.update_traces(textposition="outside", cliponaxis=False)
+
     else:
-        status_bar = px.bar(pd.DataFrame({"Service status": [], "Antall": []}), x="Service status", y="Antall")
-        date_bar = px.bar(pd.DataFrame({"date": [], "Antall": []}), x="date", y="Antall")
+        status_bar = px.bar(pd.DataFrame({"Status": [], "Antall": []}),
+                            x="Status", y="Antall")
+        date_bar   = px.bar(pd.DataFrame({"date": [], "Antall": []}),
+                            x="date", y="Antall")
 
     two_cols("Inhouse per status", status_bar, "Inhouse per statusdato", date_bar)
 
