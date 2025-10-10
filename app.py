@@ -301,27 +301,58 @@ if selected == "Reparert":
 
 
 elif selected == "Innlevert":
-    delivered = df[df["Service status"].str.lower() == "innlevert"]
+    # Kun rader hvor status er "Innlevert"
+    delivered = df[df["Service status"].str.casefold() == "innlevert"].copy()
     delivered_today = delivered[delivered["Service status date"].dt.date == today]
 
+    # KPI-er
     k1, k2 = st.columns(2)
-    with k1: kpi("Totalt innlevert", len(delivered))
-    with k2: kpi("Innlevert i dag", len(delivered_today))
+    with k1:
+        kpi("Totalt innlevert", len(delivered))
+    with k2:
+        kpi("Innlevert i dag", len(delivered_today))
 
     if not delivered.empty:
-        brand_bar = px.bar(
-            delivered.groupby("Product brand").size().reset_index(name="Antall"),
-            x="Product brand", y="Antall", text="Antall"
-        ).update_layout(xaxis_title="Merke", yaxis_title="Antall")
-        date_bar = px.bar(
-            delivered.assign(date=delivered["Service status date"].dt.date).groupby("date").size().reset_index(name="Antall"),
-            x="date", y="Antall", text="Antall"
-        ).update_layout(xaxis_title="Statusdato", yaxis_title="Antall")
+        # --- Merke: synkende på antall ---
+        brand_df = (
+            delivered["Product brand"]
+            .astype(str).str.strip()
+            .replace({"": "Ukjent", "nan": "Ukjent", "None": "Ukjent"})
+            .value_counts()
+            .rename_axis("Product brand")
+            .reset_index(name="Antall")
+            .sort_values("Antall", ascending=False)
+        )
+        brand_bar = px.bar(brand_df, x="Product brand", y="Antall", text="Antall")
+        brand_bar.update_layout(
+            xaxis_title="Merke",
+            yaxis_title="Antall",
+            xaxis={
+                # Lås rekkefølgen til den sorterte rekkefølgen i brand_df
+                "categoryorder": "array",
+                "categoryarray": brand_df["Product brand"].tolist(),
+            },
+        )
+        brand_bar.update_traces(textposition="outside", cliponaxis=False)
+
+        # --- Statusdato (uendret, men ryddig sortering etter dato) ---
+        date_df = (
+            delivered.assign(date=delivered["Service status date"].dt.date)
+                     .groupby("date").size().reset_index(name="Antall")
+                     .sort_values("date")
+        )
+        date_bar = px.bar(date_df, x="date", y="Antall", text="Antall")
+        date_bar.update_layout(xaxis_title="Statusdato", yaxis_title="Antall")
+        date_bar.update_traces(textposition="outside", cliponaxis=False)
+
     else:
-        brand_bar = px.bar(pd.DataFrame({"Product brand": [], "Antall": []}), x="Product brand", y="Antall")
-        date_bar = px.bar(pd.DataFrame({"date": [], "Antall": []}), x="date", y="Antall")
+        brand_bar = px.bar(pd.DataFrame({"Product brand": [], "Antall": []}),
+                           x="Product brand", y="Antall")
+        date_bar = px.bar(pd.DataFrame({"date": [], "Antall": []}),
+                          x="date", y="Antall")
 
     two_cols("Innlevert per merke (alle)", brand_bar, "Innlevert per statusdato (alle)", date_bar)
+
 
 elif selected == "Inhouse":
     # Alt uten reparasjonsdato er "inhouse"
