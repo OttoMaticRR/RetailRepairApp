@@ -391,7 +391,6 @@ elif selected == "Arbeidet på":
 
     # KPI-beregninger + grouping av status
     if not wt.empty:
-        # Trim + casefold for robust matching
         raw_status = wt["Service status"].astype(str).str.strip()
         low = raw_status.str.casefold()
 
@@ -399,7 +398,7 @@ elif selected == "Arbeidet på":
         mask = low.str.match(r"^venter på ekstern part\b")
         wt["status_group"] = raw_status.where(~mask, "Venter på ekstern part")
 
-        # KPI: mest satte status (bruk gruppert status)
+        # KPI: mest satte status
         status_counts = wt["status_group"].value_counts()
         top_status = status_counts.index[0] if not status_counts.empty else "-"
         top_status_count = int(status_counts.iloc[0]) if not status_counts.empty else 0
@@ -425,13 +424,29 @@ elif selected == "Arbeidet på":
 
     # Diagrammer
     if not wt.empty:
-        # Venstre: per merke (uendret)
-        brand_bar2 = px.bar(
-            wt.groupby("Product brand").size().reset_index(name="Antall"),
-            x="Product brand", y="Antall", text="Antall"
-        ).update_layout(xaxis_title="Merke", yaxis_title="Antall")
+        # --- VENSTRE: per merke (sortert synkende) ---
+        brand_df2 = (
+            wt["Product brand"]
+            .astype(str).str.strip()
+            .replace({"": "Ukjent", "nan": "Ukjent", "None": "Ukjent"})
+            .value_counts()
+            .rename_axis("Product brand")
+            .reset_index(name="Antall")
+            .sort_values("Antall", ascending=False)
+        )
+        brand_bar2 = px.bar(brand_df2, x="Product brand", y="Antall", text="Antall")
+        brand_bar2.update_layout(
+            xaxis_title="Merke",
+            yaxis_title="Antall",
+            xaxis={
+                # Lås rekkefølgen slik vi har sortert dataframe
+                "categoryorder": "array",
+                "categoryarray": brand_df2["Product brand"].tolist(),
+            },
+        )
+        brand_bar2.update_traces(textposition="outside", cliponaxis=False)
 
-        # Høyre: per status (GRUPPERT)
+        # --- HØYRE: per status (gruppert + sortert synkende) ---
         status_df2 = (
             wt["status_group"]
             .value_counts(dropna=False)
@@ -446,14 +461,13 @@ elif selected == "Arbeidet på":
         brand_bar2 = px.bar(pd.DataFrame({"Product brand": [], "Antall": []}),
                             x="Product brand", y="Antall")
         status_bar2 = px.bar(pd.DataFrame({"Status": [], "Antall": []}),
-                            x="Status", y="Antall")
+                             x="Status", y="Antall")
 
     two_cols("Arbeidet på (i dag) per merke", brand_bar2, "Arbeidet på (i dag) per status", status_bar2)
 
-    # Tabeller (uendret)
+    # Tabeller
     with st.expander("Show tables", expanded=False):
         c1, c2 = st.columns(2)
-
         tbl_brand2 = _counts_table(wt["Product brand"], "Brand", "Enheter")
         c1.markdown("#### Arbeidet på (i dag) per merke")
         c1.dataframe(tbl_brand2, use_container_width=True, hide_index=True)
@@ -461,6 +475,7 @@ elif selected == "Arbeidet på":
         tbl_tech2 = _counts_table(wt["Service technician"], "Technician", "Enheter")
         c2.markdown("#### Arbeidet på (i dag) per tekniker")
         c2.dataframe(tbl_tech2, use_container_width=True, hide_index=True)
+
 
 
 elif selected == "Historikk":
