@@ -343,22 +343,21 @@ elif selected == "Inhouse":
 
     if not inhouse.empty:
         # ---------- GRUPPER STATUS ----------
-        # Stripp whitespace og casefold for robust matching
         stat = inhouse["Service status"].astype(str).str.strip()
         low  = stat.str.casefold()
 
-        # Kun de som begynner med "Venter på ekstern part"
+        # Kun de som begynner med "Venter på ekstern part ..."
         mask = low.str.match(r"^venter på ekstern part\b")
 
-        # Lag en gruppert statuskolonne
+        # Slå sammen til én kategori
         inhouse["status_group"] = stat.where(~mask, "Venter på ekstern part")
 
-        # Søyle: inhouse per (gruppert) status
+        # Søyle: inhouse per (gruppert) status – robust navngivning
         status_df = (
             inhouse["status_group"]
-            .value_counts()
-            .reset_index()
-            .rename(columns={"index": "Status", "status_group": "Antall"})
+            .value_counts(dropna=False)
+            .rename_axis("Status")
+            .reset_index(name="Antall")
             .sort_values("Antall", ascending=False)
         )
         status_bar = px.bar(status_df, x="Status", y="Antall", text="Antall")
