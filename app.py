@@ -316,16 +316,16 @@ if selected == "Reparert":
         tech_pie = px.pie(pd.DataFrame({"Service technician": [], "Repairs": []}),
                           names="Service technician", values="Repairs")
 
-    two_cols("Repairs by Brand", brand_bar, "Repairs by Technician", tech_pie)
+    two_cols("Merker reparert i dag", brand_bar, "Tekniker reparert i dag", tech_pie)
 
-    with st.expander("Show tables", expanded=False):
+    with st.expander("Hvis tabell", expanded=False):
         c1, c2 = st.columns(2)
         tbl_brand = _counts_table(repaired_today["Product brand"], "Brand", "Repairs")
-        c1.markdown("#### Repairs per Brand")
+        c1.markdown("#### Merker")
         c1.dataframe(tbl_brand, use_container_width=True, hide_index=True)
 
         tbl_tech = _counts_table(repaired_today["Service technician"], "Technician", "Repairs")
-        c2.markdown("#### Repairs per Technician")
+        c2.markdown("#### Teknikere")
         c2.dataframe(tbl_tech, use_container_width=True, hide_index=True)
 
 
