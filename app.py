@@ -264,7 +264,12 @@ page_header(selected, today)
 if selected == "Reparert":
     repaired_today = filter_today(df, "Service repair date")
     total_repaired = len(repaired_today)
-    n_distinct_brands = repaired_today["Product brand"].replace(["", "nan"], pd.NA).dropna().nunique()
+
+    # KPI-er
+    n_distinct_brands = (
+        repaired_today["Product brand"]
+        .replace(["", "nan"], pd.NA).dropna().nunique()
+    )
     tech_counts = repaired_today["Service technician"].value_counts()
     top_tech = tech_counts.index[0] if not tech_counts.empty else "-"
     top_tech_count = int(tech_counts.iloc[0]) if not tech_counts.empty else 0
@@ -272,25 +277,49 @@ if selected == "Reparert":
     k1, k2, k3 = st.columns(3)
     with k1: kpi("Total Repairs", total_repaired)
     with k2: kpi("Brands", n_distinct_brands)
-    with k3: kpi("Top Technician", top_tech, sub=(f"↑ {top_tech_count} repairs" if top_tech != "-" else None))
+    with k3: kpi("Top Technician", top_tech,
+                 sub=(f"↑ {top_tech_count} repairs" if top_tech != "-" else None))
 
     if not repaired_today.empty:
-        brand_bar = px.bar(
-            repaired_today.groupby("Product brand").size().reset_index(name="Repairs"),
-            x="Product brand", y="Repairs", text="Repairs"
-        ).update_layout(xaxis_title="Brand", yaxis_title="Repairs")
+        # --- Merker sortert synkende på antall ---
+        brand_df = (
+            repaired_today["Product brand"]
+            .astype(str).str.strip()
+            .replace({"": "Unknown", "nan": "Unknown", "None": "Unknown"})
+            .value_counts()
+            .rename_axis("Product brand")
+            .reset_index(name="Repairs")
+            .sort_values("Repairs", ascending=False)
+        )
+        brand_bar = px.bar(brand_df, x="Product brand", y="Repairs", text="Repairs")
+        brand_bar.update_layout(
+            xaxis_title="Brand",
+            yaxis_title="Repairs",
+            xaxis={
+                # behold sorteringen vi nettopp laget
+                "categoryorder": "array",
+                "categoryarray": brand_df["Product brand"].tolist(),
+            },
+        )
+        brand_bar.update_traces(textposition="outside", cliponaxis=False)
+
+        # Tekniker (beholdt som før)
         tech_pie = px.pie(
             repaired_today.groupby("Service technician").size().reset_index(name="Repairs"),
-            names="Service technician", values="Repairs", hole=0.35
+            names="Service technician",
+            values="Repairs",
+            hole=0.35,
         )
     else:
-        brand_bar = px.bar(pd.DataFrame({"Product brand": [], "Repairs": []}), x="Product brand", y="Repairs")
-        tech_pie = px.pie(pd.DataFrame({"Service technician": [], "Repairs": []}), names="Service technician", values="Repairs")
+        brand_bar = px.bar(pd.DataFrame({"Product brand": [], "Repairs": []}),
+                           x="Product brand", y="Repairs")
+        tech_pie = px.pie(pd.DataFrame({"Service technician": [], "Repairs": []}),
+                          names="Service technician", values="Repairs")
 
     two_cols("Repairs by Brand", brand_bar, "Repairs by Technician", tech_pie)
+
     with st.expander("Show tables", expanded=False):
         c1, c2 = st.columns(2)
-
         tbl_brand = _counts_table(repaired_today["Product brand"], "Brand", "Repairs")
         c1.markdown("#### Repairs per Brand")
         c1.dataframe(tbl_brand, use_container_width=True, hide_index=True)
@@ -298,6 +327,7 @@ if selected == "Reparert":
         tbl_tech = _counts_table(repaired_today["Service technician"], "Technician", "Repairs")
         c2.markdown("#### Repairs per Technician")
         c2.dataframe(tbl_tech, use_container_width=True, hide_index=True)
+
 
 
 elif selected == "Innlevert":
