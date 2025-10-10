@@ -275,9 +275,9 @@ if selected == "Reparert":
     top_tech_count = int(tech_counts.iloc[0]) if not tech_counts.empty else 0
 
     k1, k2, k3 = st.columns(3)
-    with k1: kpi("Total Repairs", total_repaired)
-    with k2: kpi("Brands", n_distinct_brands)
-    with k3: kpi("Top Technician", top_tech,
+    with k1: kpi("Totalt reparert i dag", total_repaired)
+    with k2: kpi("Merker", n_distinct_brands)
+    with k3: kpi("Topp tekniker", top_tech,
                  sub=(f"↑ {top_tech_count} repairs" if top_tech != "-" else None))
 
     if not repaired_today.empty:
