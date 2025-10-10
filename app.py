@@ -409,31 +409,39 @@ elif selected == "Historikk":
         .sort_values("date")
     )
 
-    if hist.empty:
-        st.info("Ingen reparasjoner i datasettet.")
-    else:
-        fig_hist = px.line(hist, x="date", y="Repairs", markers=True)
-        fig_hist.update_layout(xaxis_title="Dato", yaxis_title="Antall reparert", hovermode="x unified")
-        st.plotly_chart(fig_hist, use_container_width=True)
+   # hist: kolonnene ["date", "Repairs"] (sortert)
+MIN_REPAIRS = 2                       # vis kun dager med 2 eller mer
+hist_plot = hist[hist["Repairs"] >= MIN_REPAIRS]
 
-        all_dates = hist["date"].tolist()
-        selected_date = st.select_slider(
-            "Velg dato",
-            options=all_dates,
-            value=all_dates[-1],
-            format_func=lambda d: d.strftime("%d.%m.%Y"),
-        )
+if hist_plot.empty:
+    st.info(f"Ingen dager med {MIN_REPAIRS} eller flere reparasjoner.")
+else:
+    # 1) Linjediagram
+    fig_hist = px.line(hist_plot, x="date", y="Repairs", markers=True)
+    fig_hist.update_layout(xaxis_title="Dato", yaxis_title="Antall reparert", hovermode="x unified")
+    st.plotly_chart(fig_hist, use_container_width=True)
 
-        day_df = df[date_only == selected_date]
+    # 2) Slider bruker de filtrerte datoene
+    all_dates = hist_plot["date"].tolist()
+    selected_date = st.select_slider(
+        "Velg dato",
+        options=all_dates,
+        value=all_dates[-1],
+        format_func=lambda d: d.strftime("%d.%m.%Y"),
+    )
 
-        with st.expander("Tabeller for valgt dato", expanded=True):
-            c1, c2 = st.columns(2)
-            c1.markdown(f"#### Reparert per merke ({selected_date:%d.%m.%Y})")
-            c1.dataframe(_counts_table(day_df["Product brand"], "Brand", "Repairs"),
-                         use_container_width=True, hide_index=True)
-            c2.markdown(f"#### Reparert per tekniker ({selected_date:%d.%m.%Y})")
-            c2.dataframe(_counts_table(day_df["Service technician"], "Technician", "Repairs"),
-                         use_container_width=True, hide_index=True)
+    # 3) Tabeller for valgt dato (samme som før)
+    day_df = df[(rep_series.dt.date if not pd.api.types.is_datetime64tz_dtype(rep_series)
+                 else rep_series.dt.tz_convert(TZ_NAME).dt.date) == selected_date]
+
+    with st.expander("Tabeller for valgt dato", expanded=True):
+        c1, c2 = st.columns(2)
+        c1.markdown(f"#### Reparert per merke ({selected_date:%d.%m.%Y})")
+        c1.dataframe(_counts_table(day_df["Product brand"], "Brand", "Repairs"),
+                     use_container_width=True, hide_index=True)
+        c2.markdown(f"#### Reparert per tekniker ({selected_date:%d.%m.%Y})")
+        c2.dataframe(_counts_table(day_df["Service technician"], "Technician", "Repairs"),
+                     use_container_width=True, hide_index=True)
 
 
 st.markdown("---")
