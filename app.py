@@ -383,46 +383,85 @@ elif selected == "Inhouse":
     two_cols("Inhouse per status", status_bar, "Inhouse per statusdato", date_bar)
 
 elif selected == "Arbeidet på":
-    worked_today = df[(df["Service status date"].dt.date == today) & (df["Service status"].str.lower() != "innlevert")]
+    # Dagens saker som IKKE er "Innlevert"
+    wt = df[
+        (df["Service status date"].dt.date == today)
+        & (df["Service status"].str.lower() != "innlevert")
+    ].copy()
 
-    if not worked_today.empty:
-        ts = worked_today["Service status"].value_counts()
-        top_status, top_status_count = ts.index[0], int(ts.iloc[0])
-        tt = worked_today["Service technician"].value_counts()
-        top_tech2, top_tech2_count = tt.index[0], int(tt.iloc[0])
+    # KPI-beregninger + grouping av status
+    if not wt.empty:
+        # Trim + casefold for robust matching
+        raw_status = wt["Service status"].astype(str).str.strip()
+        low = raw_status.str.casefold()
+
+        # Samle alle som begynner med "Venter på ekstern part ..."
+        mask = low.str.match(r"^venter på ekstern part\b")
+        wt["status_group"] = raw_status.where(~mask, "Venter på ekstern part")
+
+        # KPI: mest satte status (bruk gruppert status)
+        status_counts = wt["status_group"].value_counts()
+        top_status = status_counts.index[0] if not status_counts.empty else "-"
+        top_status_count = int(status_counts.iloc[0]) if not status_counts.empty else 0
+
+        # KPI: topp tekniker i dag
+        tech_counts = wt["Service technician"].value_counts()
+        top_tech2 = tech_counts.index[0] if not tech_counts.empty else "-"
+        top_tech2_count = int(tech_counts.iloc[0]) if not tech_counts.empty else 0
     else:
         top_status, top_status_count = "-", 0
         top_tech2, top_tech2_count = "-", 0
 
+    # KPI-kort
     k1, k2, k3 = st.columns(3)
-    with k1: kpi("Totalt arbeidet på i dag", len(worked_today))
-    with k2: kpi("Mest satte status (i dag)", top_status, sub=(f"{top_status_count} enheter" if top_status != "-" else None))
-    with k3: kpi("Topp tekniker (i dag)", top_tech2, sub=(f"{top_tech2_count} enheter" if top_tech2 != "-" else None))
+    with k1:
+        kpi("Totalt arbeidet på i dag", len(wt))
+    with k2:
+        kpi("Mest satte status (i dag)", top_status,
+            sub=(f"{top_status_count} enheter" if top_status != "-" else None))
+    with k3:
+        kpi("Topp tekniker (i dag)", top_tech2,
+            sub=(f"{top_tech2_count} enheter" if top_tech2 != "-" else None))
 
-    if not worked_today.empty:
+    # Diagrammer
+    if not wt.empty:
+        # Venstre: per merke (uendret)
         brand_bar2 = px.bar(
-            worked_today.groupby("Product brand").size().reset_index(name="Antall"),
+            wt.groupby("Product brand").size().reset_index(name="Antall"),
             x="Product brand", y="Antall", text="Antall"
         ).update_layout(xaxis_title="Merke", yaxis_title="Antall")
-        status_bar2 = px.bar(
-            worked_today.groupby("Service status").size().reset_index(name="Antall"),
-            x="Service status", y="Antall", text="Antall"
-        ).update_layout(xaxis_title="Status", yaxis_title="Antall")
+
+        # Høyre: per status (GRUPPERT)
+        status_df2 = (
+            wt["status_group"]
+            .value_counts(dropna=False)
+            .rename_axis("Status")
+            .reset_index(name="Antall")
+            .sort_values("Antall", ascending=False)
+        )
+        status_bar2 = px.bar(status_df2, x="Status", y="Antall", text="Antall")
+        status_bar2.update_layout(xaxis_title="Status", yaxis_title="Antall")
+        status_bar2.update_traces(textposition="outside", cliponaxis=False)
     else:
-        brand_bar2 = px.bar(pd.DataFrame({"Product brand": [], "Antall": []}), x="Product brand", y="Antall")
-        status_bar2 = px.bar(pd.DataFrame({"Service status": [], "Antall": []}), x="Service status", y="Antall")
+        brand_bar2 = px.bar(pd.DataFrame({"Product brand": [], "Antall": []}),
+                            x="Product brand", y="Antall")
+        status_bar2 = px.bar(pd.DataFrame({"Status": [], "Antall": []}),
+                            x="Status", y="Antall")
 
     two_cols("Arbeidet på (i dag) per merke", brand_bar2, "Arbeidet på (i dag) per status", status_bar2)
+
+    # Tabeller (uendret)
     with st.expander("Show tables", expanded=False):
         c1, c2 = st.columns(2)
 
-        tbl_brand2 = _counts_table(worked_today["Product brand"], "Brand", "Enheter")
+        tbl_brand2 = _counts_table(wt["Product brand"], "Brand", "Enheter")
         c1.markdown("#### Arbeidet på (i dag) per merke")
         c1.dataframe(tbl_brand2, use_container_width=True, hide_index=True)
 
-        tbl_tech2 = _counts_table(worked_today["Service technician"], "Technician", "Enheter")
+        tbl_tech2 = _counts_table(wt["Service technician"], "Technician", "Enheter")
         c2.markdown("#### Arbeidet på (i dag) per tekniker")
         c2.dataframe(tbl_tech2, use_container_width=True, hide_index=True)
+
 
 elif selected == "Historikk":
     rep_series = df["Service repair date"]
