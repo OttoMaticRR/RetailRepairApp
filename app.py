@@ -404,32 +404,52 @@ elif selected == "Inhouse":
     # Alt uten reparasjonsdato er "inhouse"
     inhouse = df[df["Service repair date"].isna()].copy()
 
-    # KPI-er (topp merke)
+    # --- Gruppér status: alle som begynner med "Venter på ekstern part ..." slås sammen ---
     if not inhouse.empty:
-        tb = inhouse["Product brand"].value_counts()
-        top_brand, top_brand_count = tb.index[0], int(tb.iloc[0])
+        raw_status = inhouse["Service status"].astype(str).str.strip()
+        low = raw_status.str.casefold()
+        mask = low.str.match(r"^venter på ekstern part\b")
+        inhouse["status_group"] = raw_status.where(~mask, "Venter på ekstern part")
+    else:
+        inhouse["status_group"] = pd.Series(dtype="object")
+
+    # --- KPI-er ---
+    total_inhouse = len(inhouse)
+
+    # Topp status (på den grupperte statusen)
+    if total_inhouse > 0:
+        status_counts = inhouse["status_group"].value_counts(dropna=False)
+        top_status = status_counts.index[0]
+        top_status_count = int(status_counts.iloc[0])
+    else:
+        top_status, top_status_count = "-", 0
+
+    # Topp merke
+    if total_inhouse > 0:
+        brand_counts = (
+            inhouse["Product brand"].astype(str).str.strip()
+            .replace({"": "Ukjent", "nan": "Ukjent", "None": "Ukjent"})
+            .value_counts()
+        )
+        top_brand = brand_counts.index[0]
+        top_brand_count = int(brand_counts.iloc[0])
     else:
         top_brand, top_brand_count = "-", 0
 
-    k1, k2 = st.columns(2)
+    # Vis 3 KPI-kort: Antall • Topp status • Topp merke
+    k1, k2, k3 = st.columns(3)
     with k1:
-        kpi("Totalt inhouse (ingen reparasjonsdato)", len(inhouse))
+        kpi("Totalt inhouse (ingen reparasjonsdato)", total_inhouse)
     with k2:
+        kpi("Topp status (inhouse)", top_status,
+            sub=(f"{top_status_count} enheter" if top_status != "-" else None))
+    with k3:
         kpi("Topp merke (inhouse)", top_brand,
             sub=(f"{top_brand_count} enheter" if top_brand != "-" else None))
 
-    if not inhouse.empty:
-        # ---------- GRUPPER STATUS ----------
-        stat = inhouse["Service status"].astype(str).str.strip()
-        low  = stat.str.casefold()
-
-        # Kun de som begynner med "Venter på ekstern part ..."
-        mask = low.str.match(r"^venter på ekstern part\b")
-
-        # Slå sammen til én kategori
-        inhouse["status_group"] = stat.where(~mask, "Venter på ekstern part")
-
-        # Søyle: inhouse per (gruppert) status – robust navngivning
+    # --- Diagrammer ---
+    if total_inhouse > 0:
+        # Inhouse per (gruppert) status – sortert synkende
         status_df = (
             inhouse["status_group"]
             .value_counts(dropna=False)
@@ -441,7 +461,7 @@ elif selected == "Inhouse":
         status_bar.update_layout(xaxis_title="Status", yaxis_title="Antall")
         status_bar.update_traces(textposition="outside", cliponaxis=False)
 
-        # Søyle: inhouse per statusdato (uendret)
+        # Inhouse per statusdato – kronologisk
         date_df = (
             inhouse.assign(date=inhouse["Service status date"].dt.date)
                    .groupby("date").size().reset_index(name="Antall")
@@ -450,7 +470,6 @@ elif selected == "Inhouse":
         date_bar = px.bar(date_df, x="date", y="Antall", text="Antall")
         date_bar.update_layout(xaxis_title="Statusdato", yaxis_title="Antall")
         date_bar.update_traces(textposition="outside", cliponaxis=False)
-
     else:
         status_bar = px.bar(pd.DataFrame({"Status": [], "Antall": []}),
                             x="Status", y="Antall")
@@ -458,6 +477,7 @@ elif selected == "Inhouse":
                             x="date", y="Antall")
 
     two_cols("Inhouse per status", status_bar, "Inhouse per statusdato", date_bar)
+
 
 elif selected == "Arbeidet på":
     # Dagens saker som IKKE er "Innlevert"
