@@ -234,8 +234,8 @@ today = today_oslo()
 with st.sidebar:
     selected = option_menu(
         None,
-        ["Reparert", "Innlevert", "Inhouse", "Arbeidet på"],
-        icons=["bag-fill", "box-seam", "house-door-fill", "hammer"],
+        ["Reparert", "Innlevert", "Inhouse", "Arbeidet på", "Historikk"],
+        icons=["bag-fill", "box-seam", "house-door-fill", "hammer", "calendar3"],
         menu_icon="list",
         default_index=0,
         styles={
@@ -391,5 +391,60 @@ elif selected == "Arbeidet på":
         tbl_tech2 = _counts_table(worked_today["Service technician"], "Technician", "Enheter")
         c2.markdown("#### Arbeidet på (i dag) per tekniker")
         c2.dataframe(tbl_tech2, use_container_width=True, hide_index=True)
+
+    elif selected == "Historikk":
+    # Aggreger antall reparerte per dato (fra "Service repair date")
+    rep_series = df["Service repair date"]
+
+    # Håndter både naive og tz-aware tidsstempler
+    date_only = (
+        rep_series.dt.tz_convert(TZ_NAME).dt.date
+        if hasattr(rep_series.dt, "tz") else
+        rep_series.dt.date
+    )
+
+    hist = (
+        pd.DataFrame({"date": date_only})
+        .dropna()
+        .value_counts("date")
+        .reset_index(name="Repairs")
+        .sort_values("date")
+    )
+
+    if hist.empty:
+        st.info("Ingen reparasjoner i datasettet.")
+    else:
+        # 1) Linjediagram øverst
+        fig_hist = px.line(hist, x="date", y="Repairs", markers=True)
+        fig_hist.update_layout(
+            xaxis_title="Dato",
+            yaxis_title="Antall reparert",
+            hovermode="x unified",
+        )
+        st.plotly_chart(fig_hist, use_container_width=True)
+
+        # 2) Dato-slider (bruker faktiske datoer i datasettet)
+        all_dates = hist["date"].tolist()
+        selected_date = st.select_slider(
+            "Velg dato",
+            options=all_dates,
+            value=all_dates[-1],
+            format_func=lambda d: d.strftime("%d.%m.%Y"),
+        )
+
+        # 3) Tabeller for valgt dato
+        day_df = df[date_only == selected_date]
+
+        with st.expander("Tabeller for valgt dato", expanded=True):
+            c1, c2 = st.columns(2)
+
+            c1.markdown(f"#### Reparert per merke ({selected_date:%d.%m.%Y})")
+            tbl_brand_day = _counts_table(day_df["Product brand"], "Brand", "Repairs")
+            c1.dataframe(tbl_brand_day, use_container_width=True, hide_index=True)
+
+            c2.markdown(f"#### Reparert per tekniker ({selected_date:%d.%m.%Y})")
+            tbl_tech_day = _counts_table(day_df["Service technician"], "Technician", "Repairs")
+            c2.dataframe(tbl_tech_day, use_container_width=True, hide_index=True)
+
 
 st.markdown("---")
