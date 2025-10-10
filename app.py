@@ -318,7 +318,7 @@ if selected == "Reparert":
 
     two_cols("Merker reparert i dag", brand_bar, "Tekniker reparert i dag", tech_pie)
 
-    with st.expander("Hvis tabell", expanded=False):
+    with st.expander("Vis tabell", expanded=False):
         c1, c2 = st.columns(2)
         tbl_brand = _counts_table(repaired_today["Product brand"], "Brand", "Repairs")
         c1.markdown("#### Merker")
@@ -355,7 +355,7 @@ elif selected == "Innlevert":
     with k2:
         kpi("Innlevert i dag", len(delivered_today))
     with k3:
-        kpi("Topp merke (innlevert)", top_brand,
+        kpi("Topp merke", top_brand,
             sub=(f"{top_brand_count} enheter" if top_brand != "-" else None))
 
     # Diagrammer
@@ -396,7 +396,7 @@ elif selected == "Innlevert":
         date_bar  = px.bar(pd.DataFrame({"date": [], "Antall": []}),
                            x="date", y="Antall")
 
-    two_cols("Innlevert per merke (alle)", brand_bar, "Innlevert per statusdato (alle)", date_bar)
+    two_cols("Merke", brand_bar, "Dato", date_bar)
 
 
 
@@ -513,10 +513,10 @@ elif selected == "Arbeidet på":
     with k1:
         kpi("Totalt arbeidet på i dag", len(wt))
     with k2:
-        kpi("Mest satte status (i dag)", top_status,
+        kpi("Mest satte status i dag", top_status,
             sub=(f"{top_status_count} enheter" if top_status != "-" else None))
     with k3:
-        kpi("Topp tekniker (i dag)", top_tech2,
+        kpi("Topp tekniker i dag", top_tech2,
             sub=(f"{top_tech2_count} enheter" if top_tech2 != "-" else None))
 
     # Diagrammer
@@ -560,7 +560,7 @@ elif selected == "Arbeidet på":
         status_bar2 = px.bar(pd.DataFrame({"Status": [], "Antall": []}),
                              x="Status", y="Antall")
 
-    two_cols("Arbeidet på (i dag) per merke", brand_bar2, "Arbeidet på (i dag) per status", status_bar2)
+    two_cols("Arbeidet på i dag per merke", brand_bar2, "Arbeidet på i dag per status", status_bar2)
 
     # Tabeller
     with st.expander("Show tables", expanded=False):
