@@ -563,7 +563,7 @@ elif selected == "Arbeidet på":
     two_cols("Arbeidet på i dag per merke", brand_bar2, "Arbeidet på i dag per status", status_bar2)
 
     # Tabeller
-    with st.expander("Show tables", expanded=False):
+    with st.expander("Vis tabell", expanded=False):
         c1, c2 = st.columns(2)
         tbl_brand2 = _counts_table(wt["Product brand"], "Brand", "Enheter")
         c1.markdown("#### Arbeidet på (i dag) per merke")
