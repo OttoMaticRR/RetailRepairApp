@@ -214,12 +214,27 @@ def two_cols(fig_left_title, fig_left, fig_right_title, fig_right):
         st.plotly_chart(fig_right, use_container_width=True)
 
 def _counts_table(series: pd.Series, left_header: str, right_header: str) -> pd.DataFrame:
-    s = (series.astype(str).str.strip()
-         .replace({"": "Ukjent", "nan": "Ukjent", "None": "Ukjent"}))
-    out = s.value_counts(dropna=False).reset_index()
-    out.columns = [left_header, right_header]
-    out.insert(0, "", range(1, len(out) + 1))  # nummerering 1..N
+    # Gjør alt til string, trim, og erstatt tomt/NA med "Ukjent"
+    s = pd.Series(series).astype("string").str.strip()
+    s = s.where(s.notna() & (s != ""), "Ukjent")
+
+    # Tell, og lag en ren DF
+    out = (
+        s.value_counts(dropna=False)
+         .rename_axis(left_header)
+         .reset_index(name=right_header)
+    )
+
+    # Nummerkolonne (ikke tomt headernavn)
+    out.insert(0, "Nr", range(1, len(out) + 1))
+
+    # Cast til "safe" typer (unngår React/serialiseringsfeil)
+    out["Nr"] = out["Nr"].astype(int)
+    out[right_header] = out[right_header].astype(int)
+    out[left_header] = out[left_header].astype(str)
+
     return out
+
 
 
 # ---------------------
