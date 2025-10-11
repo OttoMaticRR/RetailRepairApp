@@ -214,24 +214,24 @@ def two_cols(fig_left_title, fig_left, fig_right_title, fig_right):
         st.plotly_chart(fig_right, use_container_width=True)
 
 def _counts_table(series: pd.Series, left_header: str, right_header: str) -> pd.DataFrame:
-    # Gjør alt til string, trim, og erstatt tomt/NA med "Ukjent"
-    s = pd.Series(series).astype("string").str.strip()
-    s = s.where(s.notna() & (s != ""), "Ukjent")
+    # 1) Tving til "object"-strenger (ikke Pandas StringDtype)
+    s = pd.Series(series, dtype=object).astype(str).str.strip()
 
-    # Tell, og lag en ren DF
+    # 2) Erstatt tomt/NA med "Ukjent"
+    s = s.replace({"": "Ukjent", "nan": "Ukjent", "None": "Ukjent", "NaN": "Ukjent"})
+
+    # 3) Tell og bygg tabell
     out = (
         s.value_counts(dropna=False)
          .rename_axis(left_header)
          .reset_index(name=right_header)
     )
 
-    # Nummerkolonne (ikke tomt headernavn)
+    # 4) Nummerkolonne og sikre enkle dtypes
     out.insert(0, "Nr", range(1, len(out) + 1))
-
-    # Cast til "safe" typer (unngår React/serialiseringsfeil)
-    out["Nr"] = out["Nr"].astype(int)
-    out[right_header] = out[right_header].astype(int)
-    out[left_header] = out[left_header].astype(str)
+    out = out.astype({"Nr": int, right_header: int})
+    # Sørg for at tekstkolonnen faktisk er ren 'object'-str
+    out[left_header] = out[left_header].astype(object)
 
     return out
 
