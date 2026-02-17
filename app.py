@@ -163,6 +163,9 @@ def fetch_data():
     records = ws.get_all_records()
     df = pd.DataFrame(records)
 
+    # 🔧 VIKTIG: fjern skjulte mellomrom i kolonnenavn fra Sheets
+    df.columns = df.columns.astype(str).str.strip()
+
     expected = [
         "Service status date",
         "Service status",
@@ -170,21 +173,44 @@ def fetch_data():
         "Product brand",
         "Service technician",
     ]
+
+    # Rename case-insensitive (etter stripping)
     cols_lower = {c.lower(): c for c in df.columns}
     for wanted in expected:
         if wanted not in df.columns and wanted.lower() in cols_lower:
             df.rename(columns={cols_lower[wanted.lower()]: wanted}, inplace=True)
+
+    # Lag manglende kolonner hvis de faktisk ikke finnes
     for col in expected:
         if col not in df.columns:
             df[col] = pd.NA
 
-    for dc in ["Service status date", "Service repair date"]:
-        df[dc] = pd.to_datetime(df[dc], errors="coerce", dayfirst=True)
+    # Robust dato-parse (tåler både tekst-dato og tall/serial fra Sheets)
+    def _parse_sheet_datetime(s: pd.Series) -> pd.Series:
+        s_raw = pd.Series(s)
 
+        # 1) vanlig parsing (dd.mm.yyyy osv)
+        dt = pd.to_datetime(s_raw, errors="coerce", dayfirst=True)
+
+        # 2) fallback: Google/Excel-serial (dager siden 1899-12-30)
+        num = pd.to_numeric(s_raw, errors="coerce")
+        serial_mask = dt.isna() & num.notna() & (num > 20000) & (num < 60000)
+        if serial_mask.any():
+            dt.loc[serial_mask] = pd.to_datetime(
+                num.loc[serial_mask], unit="D", origin="1899-12-30"
+            )
+
+        return dt
+
+    for dc in ["Service status date", "Service repair date"]:
+        df[dc] = _parse_sheet_datetime(df[dc])
+
+    # Trim tekstkolonner (men behold dato-kolonner som datetime)
     for sc in ["Service status", "Product brand", "Service technician"]:
         df[sc] = df[sc].astype(str).str.strip()
 
     return df
+
 
 # ---------------------
 # Helpers
