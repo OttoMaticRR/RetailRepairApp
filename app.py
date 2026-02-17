@@ -650,7 +650,7 @@ elif selected == "Teknikere":
         st.info("Ingen reparasjoner i datasettet.")
     else:
         # Rens tekniker + dato
-        rep["Service technician"] = (
+        rep["Tekniker"] = (
             rep["Service technician"]
             .astype(str).str.strip()
             .replace({"": "Ukjent", "nan": "Ukjent", "None": "Ukjent", "NaN": "Ukjent"})
@@ -668,24 +668,27 @@ elif selected == "Teknikere":
         rep_7 = rep[rep["rep_date"] >= cutoff_7]
         rep_30 = rep[rep["rep_date"] >= cutoff_30]
 
-        total_7 = rep_7["Service technician"].value_counts()
-        total_30 = rep_30["Service technician"].value_counts()
+        total_7 = rep_7["Tekniker"].value_counts()
+        total_30 = rep_30["Tekniker"].value_counts()
 
-        avg_7 = (total_7 / days_7).rename("Snitt 7 dager")
-        avg_30 = (total_30 / days_30).rename("Snitt 30 dager")
+        # Snitt per dag (kalenderdager)
+        avg_7 = (total_7 / days_7).to_frame("Snitt 7 dager")
+        avg_30 = (total_30 / days_30).to_frame("Snitt 30 dager")
 
-        tech_tbl = (
-            pd.concat([avg_7, avg_30], axis=1)
-            .fillna(0)
-            .reset_index()
-            .rename(columns={"index": "Tekniker"})
-        )
+        tech_tbl = avg_7.join(avg_30, how="outer").fillna(0).reset_index()
+
+        # Robust: uansett hva første kolonne heter, kall den "Tekniker"
+        tech_tbl.rename(columns={tech_tbl.columns[0]: "Tekniker"}, inplace=True)
+
         tech_tbl["Trend (7d-30d)"] = tech_tbl["Snitt 7 dager"] - tech_tbl["Snitt 30 dager"]
         tech_tbl = tech_tbl.sort_values("Snitt 7 dager", ascending=False)
 
         # KPI
-        top_name = tech_tbl.iloc[0]["Tekniker"] if not tech_tbl.empty else "-"
-        top_avg7 = float(tech_tbl.iloc[0]["Snitt 7 dager"]) if not tech_tbl.empty else 0.0
+        if not tech_tbl.empty:
+            top_name = str(tech_tbl.iloc[0]["Tekniker"])
+            top_avg7 = float(tech_tbl.iloc[0]["Snitt 7 dager"])
+        else:
+            top_name, top_avg7 = "-", 0.0
 
         k1, k2, k3 = st.columns(3)
         with k1:
@@ -717,15 +720,16 @@ elif selected == "Teknikere":
         st.subheader("Trend – positiv eller negativ")
         st.plotly_chart(trend_bar, use_container_width=True)
 
-        # Tabell (dtypes “safe”)
+        # Tabell (safe dtypes)
         tech_tbl_out = tech_tbl.copy()
+        tech_tbl_out["Tekniker"] = tech_tbl_out["Tekniker"].astype(object)
         tech_tbl_out["Snitt 7 dager"] = tech_tbl_out["Snitt 7 dager"].astype(float).round(2)
         tech_tbl_out["Snitt 30 dager"] = tech_tbl_out["Snitt 30 dager"].astype(float).round(2)
         tech_tbl_out["Trend (7d-30d)"] = tech_tbl_out["Trend (7d-30d)"].astype(float).round(2)
-        tech_tbl_out["Tekniker"] = tech_tbl_out["Tekniker"].astype(object)
 
         with st.expander("Vis tabell", expanded=False):
             st.dataframe(tech_tbl_out, use_container_width=True, hide_index=True)
+
 
 
 st.markdown("---")
