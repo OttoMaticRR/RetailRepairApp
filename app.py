@@ -160,11 +160,25 @@ def fetch_data():
     gc = get_gspread_client()
     sh = gc.open_by_key(GSHEETS_SHEET_ID)
     ws = sh.worksheet(GSHEETS_WORKSHEET)
-    records = ws.get_all_records()
-    df = pd.DataFrame(records)
 
-    # 🔧 VIKTIG: fjern skjulte mellomrom i kolonnenavn fra Sheets
-    df.columns = df.columns.astype(str).str.strip()
+    values = ws.get_all_values()  # <- henter “rått” fra Sheets
+    if not values:
+        return pd.DataFrame()
+
+    def norm_header(x: str) -> str:
+        x = str(x)
+        x = x.replace("\u00A0", " ")   # NBSP
+        x = x.replace("\u200b", "")    # zero-width
+        x = x.replace("\ufeff", "")    # BOM
+        x = " ".join(x.split())        # kollaps multiple spaces
+        return x.strip()
+
+    headers = [norm_header(h) for h in values[0]]
+    rows = values[1:]
+    df = pd.DataFrame(rows, columns=headers)
+
+    # Fjern helt tomme rader
+    df = df.replace("", pd.NA).dropna(how="all")
 
     expected = [
         "Service status date",
@@ -174,26 +188,36 @@ def fetch_data():
         "Service technician",
     ]
 
-    # Rename case-insensitive (etter stripping)
-    cols_lower = {c.lower(): c for c in df.columns}
+    # Case-insensitive rename med normalisering
+    cols_norm = {norm_header(c).casefold(): c for c in df.columns}
     for wanted in expected:
-        if wanted not in df.columns and wanted.lower() in cols_lower:
-            df.rename(columns={cols_lower[wanted.lower()]: wanted}, inplace=True)
+        key = wanted.casefold()
+        if wanted not in df.columns and key in cols_norm:
+            df.rename(columns={cols_norm[key]: wanted}, inplace=True)
 
-    # Lag manglende kolonner hvis de faktisk ikke finnes
+    # Hvis fortsatt mangler (da er det faktisk feil header i arket)
     for col in expected:
         if col not in df.columns:
             df[col] = pd.NA
 
-    # Robust dato-parse (tåler både tekst-dato og tall/serial fra Sheets)
-    def _parse_sheet_datetime(s: pd.Series) -> pd.Series:
-        s_raw = pd.Series(s)
+    def clean_date_series(s: pd.Series) -> pd.Series:
+        # rens tekst før parsing
+        txt = (
+            s.astype(str)
+             .str.replace("\u00A0", " ", regex=False)
+             .str.replace("\u200b", "", regex=False)
+             .str.replace("\ufeff", "", regex=False)
+             .str.replace(",", " ", regex=False)
+             .str.replace(r"\s+", " ", regex=True)
+             .str.strip()
+        )
+        txt = txt.replace({"": pd.NA, "nan": pd.NA, "None": pd.NA, "NaN": pd.NA})
 
-        # 1) vanlig parsing (dd.mm.yyyy osv)
-        dt = pd.to_datetime(s_raw, errors="coerce", dayfirst=True)
+        # 1) vanlig parsing
+        dt = pd.to_datetime(txt, errors="coerce", dayfirst=True)
 
-        # 2) fallback: Google/Excel-serial (dager siden 1899-12-30)
-        num = pd.to_numeric(s_raw, errors="coerce")
+        # 2) fallback: Excel/Sheets serial
+        num = pd.to_numeric(txt, errors="coerce")
         serial_mask = dt.isna() & num.notna() & (num > 20000) & (num < 60000)
         if serial_mask.any():
             dt.loc[serial_mask] = pd.to_datetime(
@@ -203,11 +227,11 @@ def fetch_data():
         return dt
 
     for dc in ["Service status date", "Service repair date"]:
-        df[dc] = _parse_sheet_datetime(df[dc])
+        df[dc] = clean_date_series(df[dc])
 
-    # Trim tekstkolonner (men behold dato-kolonner som datetime)
+    # trim tekstkolonner
     for sc in ["Service status", "Product brand", "Service technician"]:
-        df[sc] = df[sc].astype(str).str.strip()
+        df[sc] = df[sc].astype(str).str.replace("\u00A0", " ", regex=False).str.strip()
 
     return df
 
