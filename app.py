@@ -249,8 +249,8 @@ today = today_oslo()
 with st.sidebar:
     selected = option_menu(
         None,
-        ["Reparert", "Innlevert", "Inhouse", "Arbeidet på", "Historikk"],
-        icons=["bag-fill", "box-seam", "house-door-fill", "hammer", "calendar3"],
+        ["Reparert", "Innlevert", "Inhouse", "Arbeidet på", "Historikk", "Teknikere"],
+        icons=["bag-fill", "box-seam", "house-door-fill", "hammer", "calendar3", "people-fill"],
         menu_icon="list",
         default_index=0,
         styles={
@@ -264,8 +264,9 @@ with st.sidebar:
                 "border-radius": "12px",
             },
             "nav-link-selected": {"background-color": "#ef4444", "color": "white"},
-        },
-    )
+    },
+)
+
     st.markdown('<div class="sidebar-footer">Secure dashboard</div>', unsafe_allow_html=True)
 
 # ---------------------
