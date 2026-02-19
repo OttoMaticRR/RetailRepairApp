@@ -282,6 +282,29 @@ def _counts_table(series: pd.Series, left_header: str, right_header: str) -> pd.
     out = out.astype({"Nr": int, right_header: int})
     # Sørg for at tekstkolonnen faktisk er ren 'object'-str
     out[left_header] = out[left_header].astype(object)
+def latest_date_in_data(df: pd.DataFrame):
+    """Finn siste dato som finnes i datasettet (statusdato eller reparasjonsdato)."""
+    candidates = []
+
+    if "Service status date" in df.columns:
+        s = pd.to_datetime(df["Service status date"], errors="coerce")
+        s = s.dropna()
+        if not s.empty:
+            candidates.append(s.dt.date.max())
+
+    if "Service repair date" in df.columns:
+        r = pd.to_datetime(df["Service repair date"], errors="coerce")
+        r = r.dropna()
+        if not r.empty:
+            candidates.append(r.dt.date.max())
+
+    return max(candidates) if candidates else today_oslo()
+
+
+def filter_on_day(df: pd.DataFrame, date_col: str, day):
+    """Filtrer rader hvor date_col matcher valgt dag."""
+    s = pd.to_datetime(df[date_col], errors="coerce")
+    return df[s.dt.date == day]
 
     return out
 
@@ -291,7 +314,15 @@ def _counts_table(series: pd.Series, left_header: str, right_header: str) -> pd.
 # Data
 # ---------------------
 df = fetch_data()
-today = today_oslo()
+
+default_day = latest_date_in_data(df)
+
+with st.sidebar:
+    selected_day = st.date_input("Vis dato", value=default_day)
+
+# Bruk selected_day som “dashboard-dato”
+today = selected_day
+
 
 # ---------------------
 # Sidebar menu
