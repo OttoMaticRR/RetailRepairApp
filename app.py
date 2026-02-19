@@ -821,11 +821,6 @@ elif selected == "Teknikere":
             with k3:
                 kpi("Antall teknikere", int(tech_tbl["Tekniker"].nunique()))
 
-            st.caption(
-                f"Perioder: 7 arbeidsdager = {start_7:%d.%m.%Y}–{max_date:%d.%m.%Y} • "
-                f"30 arbeidsdager = {start_30:%d.%m.%Y}–{max_date:%d.%m.%Y}"
-            )
-
             # Graf 1: snitt 7 vs 30 (arbeidsdager)
             plot_df = tech_tbl.melt(
                 id_vars=["Tekniker", "Trend (7-30)"],
