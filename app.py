@@ -359,7 +359,7 @@ page_header(selected, today)
 # Views
 # ---------------------
 if selected == "Reparert":
-    repaired_today = filter_today(df, "Service repair date")
+    repaired_today = filter_on_day(df, "Service repair date", today)
     total_repaired = len(repaired_today)
 
     # KPI-er
@@ -429,7 +429,7 @@ if selected == "Reparert":
 
 elif selected == "Innlevert":
     # Filtrer "Innlevert"
-    delivered = df[df["Service status"].astype(str).str.strip().str.casefold() == "innlevert"].copy()
+    delivered_today = filter_on_day(delivered, "Service status date", today)
     delivered_today = delivered[delivered["Service status date"].dt.date == today]
 
     # Finn topp merke blant alle "Innlevert"
@@ -579,9 +579,10 @@ elif selected == "Inhouse":
 elif selected == "Arbeidet på":
     # Dagens saker som IKKE er "Innlevert"
     wt = df[
-        (df["Service status date"].dt.date == today)
+        (pd.to_datetime(df["Service status date"], errors="coerce").dt.date == today)
         & (df["Service status"].str.lower() != "innlevert")
     ].copy()
+
 
     # KPI-beregninger + grouping av status
     if not wt.empty:
