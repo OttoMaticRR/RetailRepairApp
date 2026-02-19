@@ -754,6 +754,7 @@ elif selected == "Historikk":
 
 
 elif selected == "Teknikere":
+    # Bruk kun rader med reparasjonsdato
     rep = df.dropna(subset=["Service repair date"]).copy()
     if rep.empty:
         st.info("Ingen reparasjoner i datasettet.")
@@ -764,80 +765,114 @@ elif selected == "Teknikere":
             .astype(str).str.strip()
             .replace({"": "Ukjent", "nan": "Ukjent", "None": "Ukjent", "NaN": "Ukjent"})
         )
-        rep["rep_date"] = rep["Service repair date"].dt.date
+        rep["rep_date"] = pd.to_datetime(rep["Service repair date"], errors="coerce").dt.date
+        rep = rep.dropna(subset=["rep_date"])
 
-        max_date = rep["rep_date"].max()
-        max_ts = pd.to_datetime(max_date)
-
-        days_7 = 7
-        days_30 = 30
-        cutoff_7 = (max_ts - pd.Timedelta(days=days_7 - 1)).date()
-        cutoff_30 = (max_ts - pd.Timedelta(days=days_30 - 1)).date()
-
-        rep_7 = rep[rep["rep_date"] >= cutoff_7]
-        rep_30 = rep[rep["rep_date"] >= cutoff_30]
-
-        total_7 = rep_7["Tekniker"].value_counts()
-        total_30 = rep_30["Tekniker"].value_counts()
-
-        # Snitt per dag (kalenderdager)
-        avg_7 = (total_7 / days_7).to_frame("Snitt 7 dager")
-        avg_30 = (total_30 / days_30).to_frame("Snitt 30 dager")
-
-        tech_tbl = avg_7.join(avg_30, how="outer").fillna(0).reset_index()
-
-        # Robust: uansett hva første kolonne heter, kall den "Tekniker"
-        tech_tbl.rename(columns={tech_tbl.columns[0]: "Tekniker"}, inplace=True)
-
-        tech_tbl["Trend (7d-30d)"] = tech_tbl["Snitt 7 dager"] - tech_tbl["Snitt 30 dager"]
-        tech_tbl = tech_tbl.sort_values("Snitt 7 dager", ascending=False)
-
-        # KPI
-        if not tech_tbl.empty:
-            top_name = str(tech_tbl.iloc[0]["Tekniker"])
-            top_avg7 = float(tech_tbl.iloc[0]["Snitt 7 dager"])
+        if rep.empty:
+            st.info("Ingen gyldige reparasjonsdatoer i datasettet.")
         else:
-            top_name, top_avg7 = "-", 0.0
+            max_date = rep["rep_date"].max()
+            end = pd.Timestamp(max_date)
 
-        k1, k2, k3 = st.columns(3)
-        with k1:
-            kpi("Siste reparasjonsdato", f"{max_date:%d.%m.%Y}")
-        with k2:
-            kpi("Topp tekniker (snitt 7d)", top_name, sub=f"{top_avg7:.2f} pr dag")
-        with k3:
-            kpi("Antall teknikere", int(tech_tbl["Tekniker"].nunique()))
+            # --- Arbeidsdager (man-fre) ---
+            # Siste 7 og 30 ARBEIDSDAGER (ikke kalenderdager)
+            start_7 = pd.bdate_range(end=end, periods=7)[0].date()
+            start_30 = pd.bdate_range(end=end, periods=30)[0].date()
 
-        # Graf 1: snitt 7 vs 30
-        plot_df = tech_tbl.melt(
-            id_vars=["Tekniker", "Trend (7d-30d)"],
-            value_vars=["Snitt 7 dager", "Snitt 30 dager"],
-            var_name="Periode",
-            value_name="Snitt per dag",
-        )
+            rep_7 = rep[(rep["rep_date"] >= start_7) & (rep["rep_date"] <= max_date)]
+            rep_30 = rep[(rep["rep_date"] >= start_30) & (rep["rep_date"] <= max_date)]
 
-        bar = px.bar(plot_df, x="Tekniker", y="Snitt per dag", color="Periode", barmode="group", text="Snitt per dag")
-        bar.update_traces(texttemplate="%{text:.2f}", textposition="outside", cliponaxis=False)
-        bar.update_layout(xaxis_title="Tekniker", yaxis_title="Snitt reparert per dag", legend_title="Periode")
-        st.subheader("Snitt reparert per dag – 7 vs 30 dager")
-        st.plotly_chart(bar, use_container_width=True)
+            total_7 = rep_7["Tekniker"].value_counts()
+            total_30 = rep_30["Tekniker"].value_counts()
 
-        # Graf 2: trend (positiv/negativ)
-        trend_df = tech_tbl[["Tekniker", "Trend (7d-30d)"]].copy().sort_values("Trend (7d-30d)", ascending=False)
-        trend_bar = px.bar(trend_df, x="Tekniker", y="Trend (7d-30d)", text="Trend (7d-30d)")
-        trend_bar.update_traces(texttemplate="%{text:.2f}", textposition="outside", cliponaxis=False)
-        trend_bar.update_layout(xaxis_title="Tekniker", yaxis_title="Trend (snitt 7d minus snitt 30d)")
-        st.subheader("Trend – positiv eller negativ")
-        st.plotly_chart(trend_bar, use_container_width=True)
+            # Snitt per arbeidsdag
+            avg_7 = (total_7 / 7).to_frame("Snitt 7 arbeidsdager")
+            avg_30 = (total_30 / 30).to_frame("Snitt 30 arbeidsdager")
 
-        # Tabell (safe dtypes)
-        tech_tbl_out = tech_tbl.copy()
-        tech_tbl_out["Tekniker"] = tech_tbl_out["Tekniker"].astype(object)
-        tech_tbl_out["Snitt 7 dager"] = tech_tbl_out["Snitt 7 dager"].astype(float).round(2)
-        tech_tbl_out["Snitt 30 dager"] = tech_tbl_out["Snitt 30 dager"].astype(float).round(2)
-        tech_tbl_out["Trend (7d-30d)"] = tech_tbl_out["Trend (7d-30d)"].astype(float).round(2)
+            # Totaler (greit å vise)
+            tot_7 = total_7.to_frame("Totalt 7 arbeidsdager")
+            tot_30 = total_30.to_frame("Totalt 30 arbeidsdager")
 
-        with st.expander("Vis tabell", expanded=False):
-            st.dataframe(tech_tbl_out, use_container_width=True, hide_index=True)
+            tech_tbl = (
+                avg_7.join(avg_30, how="outer")
+                    .join(tot_7, how="outer")
+                    .join(tot_30, how="outer")
+                    .fillna(0)
+                    .reset_index()
+            )
+            tech_tbl.rename(columns={tech_tbl.columns[0]: "Tekniker"}, inplace=True)
+
+            # Trend: forskjell mellom snitt 7 og snitt 30
+            tech_tbl["Trend (7-30)"] = tech_tbl["Snitt 7 arbeidsdager"] - tech_tbl["Snitt 30 arbeidsdager"]
+            tech_tbl = tech_tbl.sort_values("Snitt 7 arbeidsdager", ascending=False)
+
+            # KPI
+            if not tech_tbl.empty:
+                top_name = str(tech_tbl.iloc[0]["Tekniker"])
+                top_avg7 = float(tech_tbl.iloc[0]["Snitt 7 arbeidsdager"])
+            else:
+                top_name, top_avg7 = "-", 0.0
+
+            k1, k2, k3 = st.columns(3)
+            with k1:
+                kpi("Siste reparasjonsdato", f"{max_date:%d.%m.%Y}")
+            with k2:
+                kpi("Topp tekniker (snitt 7 arb.d)", top_name, sub=f"{top_avg7:.2f} pr arbeidsdag")
+            with k3:
+                kpi("Antall teknikere", int(tech_tbl["Tekniker"].nunique()))
+
+            st.caption(
+                f"Perioder: 7 arbeidsdager = {start_7:%d.%m.%Y}–{max_date:%d.%m.%Y} • "
+                f"30 arbeidsdager = {start_30:%d.%m.%Y}–{max_date:%d.%m.%Y}"
+            )
+
+            # Graf 1: snitt 7 vs 30 (arbeidsdager)
+            plot_df = tech_tbl.melt(
+                id_vars=["Tekniker", "Trend (7-30)"],
+                value_vars=["Snitt 7 arbeidsdager", "Snitt 30 arbeidsdager"],
+                var_name="Periode",
+                value_name="Snitt pr arbeidsdag",
+            )
+
+            bar = px.bar(
+                plot_df,
+                x="Tekniker",
+                y="Snitt pr arbeidsdag",
+                color="Periode",
+                barmode="group",
+                text="Snitt pr arbeidsdag",
+            )
+            bar.update_traces(texttemplate="%{text:.2f}", textposition="outside", cliponaxis=False)
+            bar.update_layout(
+                xaxis_title="Tekniker",
+                yaxis_title="Snitt reparert pr arbeidsdag",
+                legend_title="Periode",
+            )
+            st.subheader("Snitt reparert pr arbeidsdag – 7 vs 30 arbeidsdager")
+            st.plotly_chart(bar, use_container_width=True)
+
+            # Graf 2: trend (positiv/negativ)
+            trend_df = tech_tbl[["Tekniker", "Trend (7-30)"]].copy().sort_values("Trend (7-30)", ascending=False)
+            trend_bar = px.bar(trend_df, x="Tekniker", y="Trend (7-30)", text="Trend (7-30)")
+            trend_bar.update_traces(texttemplate="%{text:.2f}", textposition="outside", cliponaxis=False)
+            trend_bar.update_layout(
+                xaxis_title="Tekniker",
+                yaxis_title="Trend (snitt 7 arbeidsdager minus snitt 30 arbeidsdager)",
+            )
+            st.subheader("Trend – positiv eller negativ")
+            st.plotly_chart(trend_bar, use_container_width=True)
+
+            # Tabell (safe dtypes)
+            tech_tbl_out = tech_tbl.copy()
+            tech_tbl_out["Tekniker"] = tech_tbl_out["Tekniker"].astype(object)
+            for c in ["Snitt 7 arbeidsdager", "Snitt 30 arbeidsdager", "Trend (7-30)"]:
+                tech_tbl_out[c] = tech_tbl_out[c].astype(float).round(2)
+            for c in ["Totalt 7 arbeidsdager", "Totalt 30 arbeidsdager"]:
+                tech_tbl_out[c] = tech_tbl_out[c].astype(int)
+
+            with st.expander("Vis tabell", expanded=False):
+                st.dataframe(tech_tbl_out, use_container_width=True, hide_index=True)
+
 
 
 
