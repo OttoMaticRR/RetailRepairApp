@@ -428,16 +428,18 @@ if selected == "Reparert":
 
 
 elif selected == "Innlevert":
-    # Filtrer "Innlevert"
-    delivered_today = filter_on_day(delivered, "Service status date", today)
-    delivered_today = delivered[delivered["Service status date"].dt.date == today]
+    # Filtrer "Innlevert" (alle)
+    delivered = df[df["Service status"].astype(str).str.strip().str.casefold() == "innlevert"].copy()
 
-    # Finn topp merke blant alle "Innlevert"
+    # Innlevert på valgt dato (today = selected_day)
+    delivered_today = filter_on_day(delivered, "Service status date", today)
+
+    # Topp merke blant alle innleverte
     if not delivered.empty:
         brand_counts = (
             delivered["Product brand"]
             .astype(str).str.strip()
-            .replace({"": "Ukjent", "nan": "Ukjent", "None": "Ukjent"})
+            .replace({"": "Ukjent", "nan": "Ukjent", "None": "Ukjent", "NaN": "Ukjent"})
             .value_counts()
         )
         top_brand = brand_counts.index[0]
@@ -445,15 +447,14 @@ elif selected == "Innlevert":
     else:
         top_brand, top_brand_count = "-", 0
 
-    # Tre KPI-kort
+    # KPI-er (3 kolonner)
     k1, k2, k3 = st.columns(3)
     with k1:
         kpi("Totalt innlevert", len(delivered))
     with k2:
-        kpi("Innlevert i dag", len(delivered_today))
+        kpi("Innlevert (valgt dato)", len(delivered_today))
     with k3:
-        kpi("Topp merke", top_brand,
-            sub=(f"{top_brand_count} enheter" if top_brand != "-" else None))
+        kpi("Topp merke", top_brand, sub=(f"{top_brand_count} enheter" if top_brand != "-" else None))
 
     # Diagrammer
     if not delivered.empty:
@@ -461,39 +462,37 @@ elif selected == "Innlevert":
         brand_df = (
             delivered["Product brand"]
             .astype(str).str.strip()
-            .replace({"": "Ukjent", "nan": "Ukjent", "None": "Ukjent"})
+            .replace({"": "Ukjent", "nan": "Ukjent", "None": "Ukjent", "NaN": "Ukjent"})
             .value_counts()
-            .rename_axis("Product brand")
+            .rename_axis("Merke")
             .reset_index(name="Antall")
             .sort_values("Antall", ascending=False)
         )
-        brand_bar = px.bar(brand_df, x="Product brand", y="Antall", text="Antall")
+        brand_bar = px.bar(brand_df, x="Merke", y="Antall", text="Antall")
         brand_bar.update_layout(
             xaxis_title="Merke",
             yaxis_title="Antall",
-            xaxis={
-                "categoryorder": "array",
-                "categoryarray": brand_df["Product brand"].tolist(),
-            },
+            xaxis={"categoryorder": "array", "categoryarray": brand_df["Merke"].tolist()},
         )
         brand_bar.update_traces(textposition="outside", cliponaxis=False)
 
-        # Statusdato — behold kronologisk
+        # Statusdato — kronologisk
         date_df = (
-            delivered.assign(date=delivered["Service status date"].dt.date)
+            delivered.assign(date=pd.to_datetime(delivered["Service status date"], errors="coerce").dt.date)
+                     .dropna(subset=["date"])
                      .groupby("date").size().reset_index(name="Antall")
                      .sort_values("date")
         )
         date_bar = px.bar(date_df, x="date", y="Antall", text="Antall")
         date_bar.update_layout(xaxis_title="Statusdato", yaxis_title="Antall")
         date_bar.update_traces(textposition="outside", cliponaxis=False)
-    else:
-        brand_bar = px.bar(pd.DataFrame({"Product brand": [], "Antall": []}),
-                           x="Product brand", y="Antall")
-        date_bar  = px.bar(pd.DataFrame({"date": [], "Antall": []}),
-                           x="date", y="Antall")
 
-    two_cols("Merke", brand_bar, "Dato", date_bar)
+    else:
+        brand_bar = px.bar(pd.DataFrame({"Merke": [], "Antall": []}), x="Merke", y="Antall")
+        date_bar  = px.bar(pd.DataFrame({"date": [], "Antall": []}), x="date", y="Antall")
+
+    two_cols("Innlevert per merke (alle)", brand_bar, "Innlevert per statusdato (alle)", date_bar)
+
 
 
 
