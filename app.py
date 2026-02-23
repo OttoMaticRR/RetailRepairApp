@@ -907,10 +907,49 @@ elif selected == "Kunder":
             mask = raw_status.str.casefold().str.match(r"^venter på ekstern part\b")
             bdf["status_group"] = raw_status.where(~mask, "Venter på ekstern part")
 
-            # KPI: topp status
-            status_counts = bdf["status_group"].value_counts(dropna=False)
-            top_status = status_counts.index[0] if not status_counts.empty else "-"
-            top_status_count = int(status_counts.iloc[0]) if not status_counts.empty else 0
+            # --- KPI (midt): Snitt TAT siste 30 dager (pr merke) + trend vs forrige 30 ---
+            DEL_COL = "Service date product received"
+
+            tat_df = df[df["Product brand"].astype(str).str.strip().str.casefold() == brand.casefold()].copy()
+
+            tat_df["delivered_dt"] = pd.to_datetime(tat_df[DEL_COL], errors="coerce")
+            tat_df["repaired_dt"] = pd.to_datetime(tat_df["Service repair date"], errors="coerce")
+
+            # Vi beregner mot valgt dashboard-dato (today = selected_day)
+            end_day = pd.Timestamp(today)
+            start_30 = end_day - pd.Timedelta(days=30)
+            start_prev30 = end_day - pd.Timedelta(days=60)
+
+            # Vinduer basert på innlevertdato
+            last30 = tat_df[(tat_df["delivered_dt"] >= start_30) & (tat_df["delivered_dt"] <= end_day)].copy()
+            prev30 = tat_df[(tat_df["delivered_dt"] >= start_prev30) & (tat_df["delivered_dt"] < start_30)].copy()
+
+            def calc_avg_tat(d: pd.DataFrame) -> float:
+                if d.empty:
+                    return 0.0
+                d = d.dropna(subset=["delivered_dt"]).copy()
+                if d.empty:
+                    return 0.0
+        
+                end_dt = d["repaired_dt"].fillna(end_day)
+                tat_days = (end_dt - d["delivered_dt"]).dt.total_seconds() / 86400.0
+                tat_days = tat_days[tat_days >= 0].dropna()  # beskyttelse mot rare datoer
+                return float(tat_days.mean()) if not tat_days.empty else 0.0
+
+            avg_last = calc_avg_tat(last30)
+            avg_prev = calc_avg_tat(prev30)
+            delta = avg_last - avg_prev
+
+            # Pil: ↑ = TAT øker (dårligere), ↓ = TAT synker (bedre), → = stabilt
+            if delta > 0.05:
+                arrow = "↑"
+            elif delta < -0.05:
+                arrow = "↓"
+            else:
+                arrow = "→"
+
+            avg_text = f"{avg_last:.1f} dager"
+            sub_text = f"{arrow} {delta:+.1f} dager vs forrige 30"
 
             # KPI: Snitt reparert pr arbeidsdag (siste 30 arbeidsdager) + trend vs forrige 30 arbeidsdager
             def _last_business_days(end_day, n=30):
