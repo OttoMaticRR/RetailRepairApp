@@ -332,22 +332,28 @@ def filter_on_day(df: pd.DataFrame, date_col: str, day):
 # Data
 # ---------------------
 df = fetch_data()
-
 default_day = latest_date_in_data(df)
 
-# 1) Source-of-truth i session_state (egen nøkkel)
+# Source-of-truth i session_state
 if "day" not in st.session_state:
     st.session_state["day"] = default_day
 
 with st.sidebar:
+    # Strammere spacing rundt dato + knapp (kun sidebar)
+    st.markdown("""
+    <style>
+    section[data-testid="stSidebar"] .stMarkdown { margin-bottom: 0.25rem; }
+    section[data-testid="stSidebar"] .stDateInput { margin-top: -6px; margin-bottom: -10px; }
+    section[data-testid="stSidebar"] .stButton { margin-top: -6px; }
+    </style>
+    """, unsafe_allow_html=True)
+
     st.markdown("**Vis dato**")
 
-    # 2) Date picker (uten key) – oppdaterer session_state["day"]
     picked = st.date_input("", value=st.session_state["day"])
     if picked != st.session_state["day"]:
         st.session_state["day"] = picked
 
-    # 3) Knapp under (ikke ved siden av) – penere i sidebar
     if st.button("I dag", use_container_width=True):
         st.session_state["day"] = today_oslo()
         st.rerun()
