@@ -330,8 +330,8 @@ today = selected_day
 with st.sidebar:
     selected = option_menu(
         None,
-        ["Reparert", "Innlevert", "Inhouse", "Arbeidet på", "Historikk", "Teknikere"],
-        icons=["bag-fill", "box-seam", "house-door-fill", "hammer", "calendar3", "people-fill"],
+        ["Reparert", "Innlevert", "Inhouse", "Arbeidet på", "Historikk", "Teknikere", "Kunder"],
+        icons=["bag-fill", "box-seam", "house-door-fill", "hammer", "calendar3", "people-fill", "people"],
         menu_icon="list",
         default_index=0,
         styles={
