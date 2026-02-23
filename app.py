@@ -990,8 +990,7 @@ elif selected == "Kunder":
             with k1:
                 kpi(f"{brand} – Totalt inne", len(bdf))
             with k2:
-                kpi("Topp status", top_status,
-                    sub=(f"{top_status_count} enheter" if top_status != "-" else None))
+                kpi("Snitt TAT (30 dager)", avg_text, sub=sub_text)
             with k3:
                 kpi("Snitt reparert (30 arb.dager)", avg_text, sub=sub_text)
             # --- Diagram 1: status (gruppert), sortert synkende ---
