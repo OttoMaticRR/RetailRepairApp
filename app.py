@@ -298,8 +298,10 @@ def _counts_table(series: pd.Series, left_header: str, right_header: str) -> pd.
     # 4) Nummerkolonne og sikre enkle dtypes
     out.insert(0, "Nr", range(1, len(out) + 1))
     out = out.astype({"Nr": int, right_header: int})
-    # Sørg for at tekstkolonnen faktisk er ren 'object'-str
     out[left_header] = out[left_header].astype(object)
+
+    return out
+    
 def latest_date_in_data(df: pd.DataFrame):
     """Finn siste dato som finnes i datasettet (statusdato eller reparasjonsdato)."""
     candidates = []
