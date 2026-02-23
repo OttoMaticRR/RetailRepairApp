@@ -369,8 +369,8 @@ today = st.session_state["day"]
 with st.sidebar:
     selected = option_menu(
         None,
-        ["Reparert", "Innlevert", "Inhouse", "Arbeidet på", "Historikk", "Teknikere", "Kunder"],
-        icons=["bag-fill", "box-seam", "house-door-fill", "hammer", "calendar3", "people-fill", "people"],
+        ["Dashboard", "Reparert", "Innlevert", "Inhouse", "Arbeidet på", "Historikk", "Teknikere", "Kunder"],
+        icons=["speedometer2", "bag-fill", "box-seam", "house-door-fill", "hammer", "calendar3", "people-fill", "people"],
         menu_icon="list",
         default_index=0,
         styles={
@@ -384,8 +384,8 @@ with st.sidebar:
                 "border-radius": "12px",
             },
             "nav-link-selected": {"background-color": "#ef4444", "color": "white"},
-    },
-)
+        },    
+    )
 
     st.markdown('<div class="sidebar-footer">Secure dashboard</div>', unsafe_allow_html=True)
 
@@ -397,6 +397,188 @@ page_header(selected, today)
 # ---------------------
 # Views
 # ---------------------
+elif selected == "Dashboard":
+    # -----------------------------
+    # Dashboard (one-glance)
+    # -----------------------------
+    REQUIRED = [
+        "Service status",
+        "Service status date",
+        "Service repair date",
+        "Service date product received",
+        "Product brand",
+        "Service technician",
+    ]
+    missing = [c for c in REQUIRED if c not in df.columns]
+    if missing:
+        st.error(f"Mangler kolonner i datasettet: {', '.join(missing)}")
+        st.stop()
+
+    end_day = pd.Timestamp(today)
+
+    def _clean_text(s: pd.Series, unknown="Ukjent") -> pd.Series:
+        x = pd.Series(s, dtype=object).astype(str).str.strip()
+        return x.replace({"": unknown, "nan": unknown, "None": unknown, "NaN": unknown})
+
+    def _last_business_days(end_date, n=30):
+        end_ts = pd.Timestamp(end_date)
+        bdays = pd.bdate_range(end=end_ts, periods=n)
+        return [d.date() for d in bdays]
+
+    def _trend_arrow_color(delta: float, good_when_up: bool, eps: float = 1e-6):
+        # good_when_up=True => ↑ grønn, ↓ rød
+        # good_when_up=False => ↓ grønn, ↑ rød
+        if delta > eps:
+            return ("↑", "green" if good_when_up else "red")
+        if delta < -eps:
+            return ("↓", "red" if good_when_up else "green")
+        return ("→", "gray")
+
+    # -----------------------------
+    # 1) Snitt reparert pr tekniker pr arbeidsdag (30 arb.dager)
+    # -----------------------------
+    rep_all = df.copy()
+    rep_all["rep_date"] = pd.to_datetime(rep_all["Service repair date"], errors="coerce").dt.date
+    rep_all = rep_all.dropna(subset=["rep_date"])
+    rep_all["tech"] = _clean_text(rep_all["Service technician"], unknown="Ukjent")
+
+    last_30_bd = _last_business_days(today, 30)
+    prev_30_bd = _last_business_days(pd.Timestamp(last_30_bd[0]) - pd.Timedelta(days=1), 30)
+
+    rep_last = rep_all[rep_all["rep_date"].isin(last_30_bd)]
+    rep_prev = rep_all[rep_all["rep_date"].isin(prev_30_bd)]
+
+    tech_last = rep_last["tech"].nunique()
+    tech_prev = rep_prev["tech"].nunique()
+
+    # snitt pr tekniker pr dag: total / (antall teknikere * 30)
+    avg_rep_per_tech_day_last = (len(rep_last) / (tech_last * 30)) if tech_last > 0 else 0.0
+    avg_rep_per_tech_day_prev = (len(rep_prev) / (tech_prev * 30)) if tech_prev > 0 else 0.0
+    delta_rep_per_tech_day = avg_rep_per_tech_day_last - avg_rep_per_tech_day_prev
+    a1, c1 = _trend_arrow_color(delta_rep_per_tech_day, good_when_up=True, eps=0.001)
+
+    kpi1_value = f"{avg_rep_per_tech_day_last:.2f}"
+    kpi1_sub = f"{a1} {delta_rep_per_tech_day:+.2f} vs forrige 30"
+
+    # -----------------------------
+    # 2) TAT (30 dager) – ferdige saker i perioden (leveranse-TAT)
+    # -----------------------------
+    tat = df.copy()
+    tat["received_dt"] = pd.to_datetime(tat["Service date product received"], errors="coerce")
+    tat["repaired_dt"] = pd.to_datetime(tat["Service repair date"], errors="coerce")
+
+    # kun ferdig-reparerte for leveranse-TAT
+    tat = tat.dropna(subset=["received_dt", "repaired_dt"])
+
+    start_30 = end_day - pd.Timedelta(days=30)
+    start_prev30 = end_day - pd.Timedelta(days=60)
+
+    tat_last = tat[(tat["repaired_dt"] > start_30) & (tat["repaired_dt"] <= end_day)].copy()
+    tat_prev = tat[(tat["repaired_dt"] > start_prev30) & (tat["repaired_dt"] <= start_30)].copy()
+
+    def _avg_tat_days(d: pd.DataFrame) -> float:
+        if d.empty:
+            return 0.0
+        tat_days = (d["repaired_dt"] - d["received_dt"]).dt.total_seconds() / 86400.0
+        tat_days = tat_days[(tat_days >= 0) & tat_days.notna()]
+        return float(tat_days.mean()) if not tat_days.empty else 0.0
+
+    avg_tat_last = _avg_tat_days(tat_last)
+    avg_tat_prev = _avg_tat_days(tat_prev)
+    delta_tat = avg_tat_last - avg_tat_prev
+
+    # For TAT: ned er bra => good_when_up=False
+    a2, c2 = _trend_arrow_color(delta_tat, good_when_up=False, eps=0.05)
+    kpi2_value = f"{avg_tat_last:.1f} dager"
+    kpi2_sub = f"{a2} {delta_tat:+.1f} vs forrige 30"
+
+    # -----------------------------
+    # 3) Snitt reparert pr dag totalt (30 arb.dager)
+    # -----------------------------
+    avg_rep_per_day_last = len(rep_last) / 30.0
+    avg_rep_per_day_prev = len(rep_prev) / 30.0
+    delta_rep_per_day = avg_rep_per_day_last - avg_rep_per_day_prev
+    a3, c3 = _trend_arrow_color(delta_rep_per_day, good_when_up=True, eps=0.05)
+
+    kpi3_value = f"{avg_rep_per_day_last:.2f}"
+    kpi3_sub = f"{a3} {delta_rep_per_day:+.2f} vs forrige 30"
+
+    # KPI-rad
+    k1, k2, k3 = st.columns(3)
+    with k1:
+        kpi("Snitt reparert pr tekniker pr dag (30 arb.dager)", kpi1_value, sub=kpi1_sub, sub_color=c1)
+    with k2:
+        kpi("Snitt TAT totalt (30 dager)", kpi2_value, sub=kpi2_sub, sub_color=c2)
+    with k3:
+        kpi("Snitt reparert pr dag totalt (30 arb.dager)", kpi3_value, sub=kpi3_sub, sub_color=c3)
+
+    # -----------------------------
+    # Graf 1: Innlevert pr merke på valgt dato
+    # Graf 2: Reparert pr merke på valgt dato
+    # -----------------------------
+    delivered = df.copy()
+    delivered["status_clean"] = _clean_text(delivered["Service status"], unknown="")
+    delivered["brand"] = _clean_text(delivered["Product brand"], unknown="Ukjent")
+
+    delivered_today = delivered[
+        (pd.to_datetime(delivered["Service status date"], errors="coerce").dt.date == today)
+        & (delivered["status_clean"].str.casefold() == "innlevert")
+    ]
+
+    delivered_df = (
+        delivered_today["brand"]
+        .value_counts()
+        .rename_axis("Merke")
+        .reset_index(name="Antall")
+        .sort_values("Antall", ascending=False)
+    )
+
+    if delivered_df.empty:
+        fig_del = px.bar(pd.DataFrame({"Merke": [], "Antall": []}), x="Merke", y="Antall")
+    else:
+        fig_del = px.bar(delivered_df, x="Merke", y="Antall", text="Antall")
+        fig_del.update_layout(
+            xaxis_title="Merke",
+            yaxis_title="Antall",
+            xaxis={"categoryorder": "array", "categoryarray": delivered_df["Merke"].tolist()},
+        )
+        fig_del.update_traces(textposition="outside", cliponaxis=False)
+
+    repaired_today = df.copy()
+    repaired_today["brand"] = _clean_text(repaired_today["Product brand"], unknown="Ukjent")
+    repaired_today = repaired_today[pd.to_datetime(repaired_today["Service repair date"], errors="coerce").dt.date == today]
+
+    repaired_df = (
+        repaired_today["brand"]
+        .value_counts()
+        .rename_axis("Merke")
+        .reset_index(name="Antall")
+        .sort_values("Antall", ascending=False)
+    )
+
+    if repaired_df.empty:
+        fig_rep = px.bar(pd.DataFrame({"Merke": [], "Antall": []}), x="Merke", y="Antall")
+    else:
+        fig_rep = px.bar(repaired_df, x="Merke", y="Antall", text="Antall")
+        fig_rep.update_layout(
+            xaxis_title="Merke",
+            yaxis_title="Antall",
+            xaxis={"categoryorder": "array", "categoryarray": repaired_df["Merke"].tolist()},
+        )
+        fig_rep.update_traces(textposition="outside", cliponaxis=False)
+
+    two_cols("Innlevert pr merke (valgt dato)", fig_del, "Reparert pr merke (valgt dato)", fig_rep)
+
+    # Litt “forklaringsinfo” i en expander (valgfritt)
+    with st.expander("Hva betyr tallene?", expanded=False):
+        st.markdown(
+            f"""
+- **Snitt reparert pr tekniker pr dag (30 arb.dager)** = antall reparasjoner siste 30 arbeidsdager / (aktive teknikere i perioden * 30).
+- **Snitt TAT totalt (30 dager)** = snitt( reparert_dato − innlevert_dato ) for saker reparert i siste 30 kalenderdager.
+- **Snitt reparert pr dag totalt (30 arb.dager)** = antall reparasjoner siste 30 arbeidsdager / 30.
+            """
+        )
+
 if selected == "Reparert":
     repaired_today = filter_on_day(df, "Service repair date", today)
     total_repaired = len(repaired_today)
