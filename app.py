@@ -869,14 +869,12 @@ elif selected == "Teknikere":
                 st.dataframe(tech_tbl_out, use_container_width=True, hide_index=True)
 
 elif selected == "Kunder":
-    # Inhouse = ingen reparasjonsdato
     base = df[df["Service repair date"].isna()].copy()
 
     if base.empty:
         st.info("Ingen enheter i inhouse.")
         st.stop()
 
-    # Finn unike merker automatisk (renset)
     brands = (
         base["Product brand"].astype(str).str.strip()
         .replace({"": pd.NA, "nan": pd.NA, "None": pd.NA, "NaN": pd.NA})
@@ -892,7 +890,6 @@ elif selected == "Kunder":
 
     tabs = st.tabs(brands)
 
-    # Helper: siste N arbeidsdager (man-fre)
     def _last_business_days(end_day, n=30):
         end_ts = pd.Timestamp(end_day)
         bdays = pd.bdate_range(end=end_ts, periods=n)
@@ -931,7 +928,7 @@ elif selected == "Kunder":
             last30_tat = tat_df[(tat_df["delivered_dt"] >= start_30) & (tat_df["delivered_dt"] <= end_day)].copy()
             prev30_tat = tat_df[(tat_df["delivered_dt"] >= start_prev30) & (tat_df["delivered_dt"] < start_30)].copy()
 
-            def calc_avg_tat_days(d: pd.DataFrame) -> float:
+            def calc_avg_tat_days(d):
                 if d.empty:
                     return 0.0
                 d = d.dropna(subset=["delivered_dt"]).copy()
@@ -948,10 +945,13 @@ elif selected == "Kunder":
 
             if tat_delta > 0.05:
                 tat_arrow = "↑"
+                tat_color = "red"    # TAT opp = dårlig
             elif tat_delta < -0.05:
                 tat_arrow = "↓"
+                tat_color = "green"  # TAT ned = bra
             else:
                 tat_arrow = "→"
+                tat_color = "gray"
 
             tat_value = f"{tat_avg_last:.1f} dager"
             tat_sub = f"{tat_arrow} {tat_delta:+.1f} dager vs forrige 30"
@@ -966,6 +966,7 @@ elif selected == "Kunder":
             rep_brand = rep_brand[
                 rep_brand["Product brand"].astype(str).str.strip().str.casefold() == brand.casefold()
             ].copy()
+
             rep_brand["rep_date"] = pd.to_datetime(rep_brand["Service repair date"], errors="coerce").dt.date
             rep_brand = rep_brand.dropna(subset=["rep_date"])
 
@@ -979,27 +980,30 @@ elif selected == "Kunder":
 
             if rep_delta > 0.001:
                 rep_arrow = "↑"
+                rep_color = "green"  # reparert opp = bra
             elif rep_delta < -0.001:
                 rep_arrow = "↓"
+                rep_color = "red"    # reparert ned = dårlig
             else:
                 rep_arrow = "→"
+                rep_color = "gray"
 
             rep_value = f"{rep_avg_last:.2f}"
             rep_sub = f"{rep_arrow} {rep_delta:+.2f} vs forrige 30"
 
             # -----------------------------
-            # KPI-kort (3 kolonner)
+            # KPI-kort
             # -----------------------------
             k1, k2, k3 = st.columns(3)
             with k1:
                 kpi(f"{brand} – Totalt inne", len(bdf))
             with k2:
-                kpi("Snitt TAT (30 dager)", tat_value, sub=tat_sub)
+                kpi("Snitt TAT (30 dager)", tat_value, sub=tat_sub, sub_color=tat_color)
             with k3:
-                kpi("Snitt reparert (30 arb.dager)", rep_value, sub=rep_sub)
+                kpi("Snitt reparert (30 arb.dager)", rep_value, sub=rep_sub, sub_color=rep_color)
 
             # -----------------------------
-            # Diagram 1: status (gruppert), sortert synkende
+            # Diagrammer
             # -----------------------------
             status_df = (
                 bdf["status_group"]
@@ -1012,9 +1016,6 @@ elif selected == "Kunder":
             status_bar.update_layout(xaxis_title="Status", yaxis_title="Antall")
             status_bar.update_traces(textposition="outside", cliponaxis=False)
 
-            # -----------------------------
-            # Diagram 2: statusdato (kronologisk)
-            # -----------------------------
             date_df = (
                 bdf.assign(date=pd.to_datetime(bdf["Service status date"], errors="coerce").dt.date)
                    .dropna(subset=["date"])
@@ -1025,16 +1026,9 @@ elif selected == "Kunder":
             date_bar.update_layout(xaxis_title="Statusdato", yaxis_title="Antall")
             date_bar.update_traces(textposition="outside", cliponaxis=False)
 
-            two_cols(
-                f"{brand} – Inhouse per status",
-                status_bar,
-                f"{brand} – Inhouse per statusdato",
-                date_bar,
-            )
+            two_cols(f"{brand} – Inhouse per status", status_bar,
+                     f"{brand} – Inhouse per statusdato", date_bar)
 
-            # -----------------------------
-            # Tabeller
-            # -----------------------------
             with st.expander("Vis tabell", expanded=False):
                 c1, c2 = st.columns(2)
 
