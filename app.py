@@ -516,33 +516,27 @@ if selected == "Dashboard":
     # Graf 1: Innlevert pr merke på valgt dato
     # Graf 2: Reparert pr merke på valgt dato
     # -----------------------------
-    delivered = df.copy()
-    delivered["status_clean"] = _clean_text(delivered["Service status"], unknown="")
-    delivered["brand"] = _clean_text(delivered["Product brand"], unknown="Ukjent")
+    # Graf 1: ALT som har status "Innlevert" (uansett dato)
+delivered_now = delivered[delivered["status_clean"].str.casefold() == "innlevert"]
 
-    delivered_today = delivered[
-        (pd.to_datetime(delivered["Service status date"], errors="coerce").dt.date == today)
-        & (delivered["status_clean"].str.casefold() == "innlevert")
-    ]
+delivered_df = (
+    delivered_now["brand"]
+    .value_counts()
+    .rename_axis("Merke")
+    .reset_index(name="Antall")
+    .sort_values("Antall", ascending=False)
+)
 
-    delivered_df = (
-        delivered_today["brand"]
-        .value_counts()
-        .rename_axis("Merke")
-        .reset_index(name="Antall")
-        .sort_values("Antall", ascending=False)
+if delivered_df.empty:
+    fig_del = px.bar(pd.DataFrame({"Merke": [], "Antall": []}), x="Merke", y="Antall")
+else:
+    fig_del = px.bar(delivered_df, x="Merke", y="Antall", text="Antall")
+    fig_del.update_layout(
+        xaxis_title="Merke",
+        yaxis_title="Antall",
+        xaxis={"categoryorder": "array", "categoryarray": delivered_df["Merke"].tolist()},
     )
-
-    if delivered_df.empty:
-        fig_del = px.bar(pd.DataFrame({"Merke": [], "Antall": []}), x="Merke", y="Antall")
-    else:
-        fig_del = px.bar(delivered_df, x="Merke", y="Antall", text="Antall")
-        fig_del.update_layout(
-            xaxis_title="Merke",
-            yaxis_title="Antall",
-            xaxis={"categoryorder": "array", "categoryarray": delivered_df["Merke"].tolist()},
-        )
-        fig_del.update_traces(textposition="outside", cliponaxis=False)
+    fig_del.update_traces(textposition="outside", cliponaxis=False)
 
     repaired_today = df.copy()
     repaired_today["brand"] = _clean_text(repaired_today["Product brand"], unknown="Ukjent")
