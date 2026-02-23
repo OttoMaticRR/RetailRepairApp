@@ -912,10 +912,39 @@ elif selected == "Kunder":
             top_status = status_counts.index[0] if not status_counts.empty else "-"
             top_status_count = int(status_counts.iloc[0]) if not status_counts.empty else 0
 
-            # KPI: topp tekniker (valgfritt, men ofte nyttig)
-            tech_counts = bdf["Service technician"].value_counts(dropna=False)
-            top_tech = tech_counts.index[0] if not tech_counts.empty else "-"
-            top_tech_count = int(tech_counts.iloc[0]) if not tech_counts.empty else 0
+            # KPI: Snitt reparert pr arbeidsdag (siste 30 arbeidsdager) + trend vs forrige 30 arbeidsdager
+def _last_business_days(end_day, n=30):
+    # end_day er en date (f.eks. today)
+    end_ts = pd.Timestamp(end_day)
+    bdays = pd.bdate_range(end=end_ts, periods=n)
+    return [d.date() for d in bdays]
+
+last_30_bd = _last_business_days(today, 30)
+prev_30_bd = _last_business_days(pd.Timestamp(last_30_bd[0]) - pd.Timedelta(days=1), 30)
+
+# Reparasjoner for dette merket (uansett om de er inhouse eller ikke)
+rep_brand = df.dropna(subset=["Service repair date"]).copy()
+rep_brand = rep_brand[rep_brand["Product brand"].astype(str).str.strip().str.casefold() == brand.casefold()].copy()
+rep_brand["rep_date"] = pd.to_datetime(rep_brand["Service repair date"], errors="coerce").dt.date
+rep_brand = rep_brand.dropna(subset=["rep_date"])
+
+count_last = int(rep_brand[rep_brand["rep_date"].isin(last_30_bd)].shape[0])
+avg_last = count_last / 30.0
+
+count_prev = int(rep_brand[rep_brand["rep_date"].isin(prev_30_bd)].shape[0])
+avg_prev = count_prev / 30.0
+
+delta = avg_last - avg_prev
+
+if delta > 0.001:
+    arrow = "↑"
+elif delta < -0.001:
+    arrow = "↓"
+else:
+    arrow = "→"
+
+avg_text = f"{avg_last:.2f}"
+sub_text = f"{arrow} {delta:+.2f} vs forrige 30"
 
             # KPI-kort (3 kolonner)
             k1, k2, k3 = st.columns(3)
@@ -925,9 +954,7 @@ elif selected == "Kunder":
                 kpi("Topp status", top_status,
                     sub=(f"{top_status_count} enheter" if top_status != "-" else None))
             with k3:
-                kpi("Topp tekniker", top_tech,
-                    sub=(f"{top_tech_count} enheter" if top_tech != "-" else None))
-
+                kpi("Snitt reparert (30 arb.dager)", avg_text, sub=sub_text)
             # --- Diagram 1: status (gruppert), sortert synkende ---
             status_df = (
                 bdf["status_group"]
