@@ -335,20 +335,25 @@ df = fetch_data()
 
 default_day = latest_date_in_data(df)
 
+# 1) Source-of-truth i session_state (egen nøkkel)
+if "day" not in st.session_state:
+    st.session_state["day"] = default_day
+
 with st.sidebar:
-    c_date, c_today = st.columns([4, 1])
+    st.markdown("**Vis dato**")
 
-    with c_date:
-        selected_day = st.date_input("Vis dato", value=default_day, key="selected_day")
+    # 2) Date picker (uten key) – oppdaterer session_state["day"]
+    picked = st.date_input("", value=st.session_state["day"])
+    if picked != st.session_state["day"]:
+        st.session_state["day"] = picked
 
-    with c_today:
-        st.write("")
-        st.write("")
-        if st.button("I dag", use_container_width=True):
-            st.session_state["selected_day"] = today_oslo()   # <-- HER: faktisk i dag
-            st.rerun()
+    # 3) Knapp under (ikke ved siden av) – penere i sidebar
+    if st.button("I dag", use_container_width=True):
+        st.session_state["day"] = today_oslo()
+        st.rerun()
 
-today = selected_day
+# Bruk valgt dato overalt i dashboardet
+today = st.session_state["day"]
 
 
 # ---------------------
