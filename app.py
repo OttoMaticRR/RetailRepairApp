@@ -876,7 +876,7 @@ elif selected == "Kunder":
         st.info("Ingen enheter i inhouse.")
         st.stop()
 
-    # Finn unike merker automatisk
+    # Finn unike merker automatisk (renset)
     brands = (
         base["Product brand"].astype(str).str.strip()
         .replace({"": pd.NA, "nan": pd.NA, "None": pd.NA, "NaN": pd.NA})
@@ -886,63 +886,91 @@ elif selected == "Kunder":
     )
     brands = sorted(brands, key=lambda x: x.casefold())
 
-    brand = st.selectbox("Velg merke", brands)
+    if not brands:
+        st.info("Fant ingen merker i inhouse-data.")
+        st.stop()
 
-    bdf = base[base["Product brand"].astype(str).str.strip().str.casefold() == brand.casefold()].copy()
+    # OBS: Streamlit tabs blir fort rotete hvis det er veldig mange merker.
+    # Hvis dere har mange, kan vi heller lage dropdown + søk.
+    tabs = st.tabs(brands)
 
-    # Gruppér status: slå sammen "Venter på ekstern part ..."
-    raw_status = bdf["Service status"].astype(str).str.strip()
-    mask = raw_status.str.casefold().str.match(r"^venter på ekstern part\b")
-    bdf["status_group"] = raw_status.where(~mask, "Venter på ekstern part")
+    for tab, brand in zip(tabs, brands):
+        with tab:
+            bdf = base[base["Product brand"].astype(str).str.strip().str.casefold() == brand.casefold()].copy()
 
-    # KPI: topp status
-    status_counts = bdf["status_group"].value_counts(dropna=False)
-    top_status = status_counts.index[0] if not status_counts.empty else "-"
-    top_status_count = int(status_counts.iloc[0]) if not status_counts.empty else 0
+            if bdf.empty:
+                st.warning(f"Ingen enheter inne for {brand}.")
+                continue
 
-    # KPI: topp tekniker (valgfritt)
-    tech_counts = bdf["Service technician"].value_counts(dropna=False)
-    top_tech = tech_counts.index[0] if not tech_counts.empty else "-"
-    top_tech_count = int(tech_counts.iloc[0]) if not tech_counts.empty else 0
+            # Gruppér status: slå sammen "Venter på ekstern part ..."
+            raw_status = bdf["Service status"].astype(str).str.strip()
+            mask = raw_status.str.casefold().str.match(r"^venter på ekstern part\b")
+            bdf["status_group"] = raw_status.where(~mask, "Venter på ekstern part")
 
-    k1, k2, k3 = st.columns(3)
-    with k1: kpi(f"{brand} – Totalt inne", len(bdf))
-    with k2: kpi("Topp status", top_status, sub=(f"{top_status_count} enheter" if top_status != "-" else None))
-    with k3: kpi("Topp tekniker", top_tech, sub=(f"{top_tech_count} enheter" if top_tech != "-" else None))
+            # KPI: topp status
+            status_counts = bdf["status_group"].value_counts(dropna=False)
+            top_status = status_counts.index[0] if not status_counts.empty else "-"
+            top_status_count = int(status_counts.iloc[0]) if not status_counts.empty else 0
 
-    # Diagrammer
-    status_df = (
-        bdf["status_group"]
-        .value_counts(dropna=False)
-        .rename_axis("Status")
-        .reset_index(name="Antall")
-        .sort_values("Antall", ascending=False)
-    )
-    status_bar = px.bar(status_df, x="Status", y="Antall", text="Antall")
-    status_bar.update_layout(xaxis_title="Status", yaxis_title="Antall")
-    status_bar.update_traces(textposition="outside", cliponaxis=False)
+            # KPI: topp tekniker (valgfritt, men ofte nyttig)
+            tech_counts = bdf["Service technician"].value_counts(dropna=False)
+            top_tech = tech_counts.index[0] if not tech_counts.empty else "-"
+            top_tech_count = int(tech_counts.iloc[0]) if not tech_counts.empty else 0
 
-    date_df = (
-        bdf.assign(date=pd.to_datetime(bdf["Service status date"], errors="coerce").dt.date)
-           .dropna(subset=["date"])
-           .groupby("date").size().reset_index(name="Antall")
-           .sort_values("date")
-    )
-    date_bar = px.bar(date_df, x="date", y="Antall", text="Antall")
-    date_bar.update_layout(xaxis_title="Statusdato", yaxis_title="Antall")
-    date_bar.update_traces(textposition="outside", cliponaxis=False)
+            # KPI-kort (3 kolonner)
+            k1, k2, k3 = st.columns(3)
+            with k1:
+                kpi(f"{brand} – Totalt inne", len(bdf))
+            with k2:
+                kpi("Topp status", top_status,
+                    sub=(f"{top_status_count} enheter" if top_status != "-" else None))
+            with k3:
+                kpi("Topp tekniker", top_tech,
+                    sub=(f"{top_tech_count} enheter" if top_tech != "-" else None))
 
-    two_cols(f"{brand} – Inhouse per status", status_bar, f"{brand} – Inhouse per statusdato", date_bar)
+            # --- Diagram 1: status (gruppert), sortert synkende ---
+            status_df = (
+                bdf["status_group"]
+                .value_counts(dropna=False)
+                .rename_axis("Status")
+                .reset_index(name="Antall")
+                .sort_values("Antall", ascending=False)
+            )
+            status_bar = px.bar(status_df, x="Status", y="Antall", text="Antall")
+            status_bar.update_layout(xaxis_title="Status", yaxis_title="Antall")
+            status_bar.update_traces(textposition="outside", cliponaxis=False)
 
-    with st.expander("Vis tabell", expanded=False):
-        c1, c2 = st.columns(2)
-        c1.markdown("#### Status (antall)")
-        c1.dataframe(_counts_table(bdf["status_group"], "Status", "Antall"),
-                     use_container_width=True, hide_index=True)
+            # --- Diagram 2: statusdato (kronologisk) ---
+            date_df = (
+                bdf.assign(date=pd.to_datetime(bdf["Service status date"], errors="coerce").dt.date)
+                   .dropna(subset=["date"])
+                   .groupby("date").size().reset_index(name="Antall")
+                   .sort_values("date")
+            )
+            date_bar = px.bar(date_df, x="date", y="Antall", text="Antall")
+            date_bar.update_layout(xaxis_title="Statusdato", yaxis_title="Antall")
+            date_bar.update_traces(textposition="outside", cliponaxis=False)
 
-        c2.markdown("#### Tekniker (antall)")
-        c2.dataframe(_counts_table(bdf["Service technician"], "Tekniker", "Antall"),
-                     use_container_width=True, hide_index=True)
+            two_cols(f"{brand} – Inhouse per status", status_bar,
+                     f"{brand} – Inhouse per statusdato", date_bar)
+
+            # Tabeller
+            with st.expander("Vis tabell", expanded=False):
+                c1, c2 = st.columns(2)
+
+                c1.markdown("#### Status (antall)")
+                c1.dataframe(
+                    _counts_table(bdf["status_group"], "Status", "Antall"),
+                    use_container_width=True,
+                    hide_index=True,
+                )
+
+                c2.markdown("#### Tekniker (antall)")
+                c2.dataframe(
+                    _counts_table(bdf["Service technician"], "Tekniker", "Antall"),
+                    use_container_width=True,
+                    hide_index=True,
+                )
 
 
 st.markdown("---")
