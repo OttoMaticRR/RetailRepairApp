@@ -245,14 +245,29 @@ def today_oslo():
 def filter_today(df, date_col):
     return df[df[date_col].dt.date == today_oslo()]
 
-def kpi(label, value, sub=None):
-    st.markdown(f"""
-    <div class="kpi-card">
-      <div class="kpi-label">{label}</div>
-      <div class="kpi-value">{value if value is not None else 0}</div>
-      {f'<div class="kpi-sub">{sub}</div>' if sub else ''}
-    </div>
-    """, unsafe_allow_html=True)
+def kpi(label, value, sub=None, sub_color=None):
+    # sub_color kan være: "green", "red", "gray" eller en hex som "#10b981"
+    color_map = {
+        "green": "#10b981",
+        "red": "#ef4444",
+        "gray": "#9CA3AF",
+    }
+    css_color = color_map.get(sub_color, sub_color) if sub_color else None
+
+    st.markdown(
+        f"""
+        <div class="kpi-card">
+          <div class="kpi-label">{label}</div>
+          <div class="kpi-value">{value if value is not None else 0}</div>
+          {(
+              f'<div class="kpi-sub" style="color:{css_color} !important;">{sub}</div>'
+              if (sub and css_color)
+              else (f'<div class="kpi-sub">{sub}</div>' if sub else "")
+          )}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 def two_cols(fig_left_title, fig_left, fig_right_title, fig_right):
     c1, c2 = st.columns(2)
