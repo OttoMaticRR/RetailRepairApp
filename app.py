@@ -890,13 +890,19 @@ elif selected == "Kunder":
         st.info("Fant ingen merker i inhouse-data.")
         st.stop()
 
-    # OBS: Streamlit tabs blir fort rotete hvis det er veldig mange merker.
-    # Hvis dere har mange, kan vi heller lage dropdown + søk.
     tabs = st.tabs(brands)
+
+    # Helper: siste N arbeidsdager (man-fre)
+    def _last_business_days(end_day, n=30):
+        end_ts = pd.Timestamp(end_day)
+        bdays = pd.bdate_range(end=end_ts, periods=n)
+        return [d.date() for d in bdays]
 
     for tab, brand in zip(tabs, brands):
         with tab:
-            bdf = base[base["Product brand"].astype(str).str.strip().str.casefold() == brand.casefold()].copy()
+            bdf = base[
+                base["Product brand"].astype(str).str.strip().str.casefold() == brand.casefold()
+            ].copy()
 
             if bdf.empty:
                 st.warning(f"Ingen enheter inne for {brand}.")
@@ -907,93 +913,94 @@ elif selected == "Kunder":
             mask = raw_status.str.casefold().str.match(r"^venter på ekstern part\b")
             bdf["status_group"] = raw_status.where(~mask, "Venter på ekstern part")
 
-            # --- KPI (midt): Snitt TAT siste 30 dager (pr merke) + trend vs forrige 30 ---
+            # -----------------------------
+            # KPI (midt): Snitt TAT 30 dager + trend vs forrige 30
+            # -----------------------------
             DEL_COL = "Service date product received"
-
-            tat_df = df[df["Product brand"].astype(str).str.strip().str.casefold() == brand.casefold()].copy()
-
-            tat_df["delivered_dt"] = pd.to_datetime(tat_df[DEL_COL], errors="coerce")
-            tat_df["repaired_dt"] = pd.to_datetime(tat_df["Service repair date"], errors="coerce")
-
-            # Vi beregner mot valgt dashboard-dato (today = selected_day)
             end_day = pd.Timestamp(today)
             start_30 = end_day - pd.Timedelta(days=30)
             start_prev30 = end_day - pd.Timedelta(days=60)
 
-            # Vinduer basert på innlevertdato
-            last30 = tat_df[(tat_df["delivered_dt"] >= start_30) & (tat_df["delivered_dt"] <= end_day)].copy()
-            prev30 = tat_df[(tat_df["delivered_dt"] >= start_prev30) & (tat_df["delivered_dt"] < start_30)].copy()
+            tat_df = df[
+                df["Product brand"].astype(str).str.strip().str.casefold() == brand.casefold()
+            ].copy()
 
-            def calc_avg_tat(d: pd.DataFrame) -> float:
+            tat_df["delivered_dt"] = pd.to_datetime(tat_df[DEL_COL], errors="coerce")
+            tat_df["repaired_dt"] = pd.to_datetime(tat_df["Service repair date"], errors="coerce")
+
+            last30_tat = tat_df[(tat_df["delivered_dt"] >= start_30) & (tat_df["delivered_dt"] <= end_day)].copy()
+            prev30_tat = tat_df[(tat_df["delivered_dt"] >= start_prev30) & (tat_df["delivered_dt"] < start_30)].copy()
+
+            def calc_avg_tat_days(d: pd.DataFrame) -> float:
                 if d.empty:
                     return 0.0
                 d = d.dropna(subset=["delivered_dt"]).copy()
                 if d.empty:
                     return 0.0
-        
                 end_dt = d["repaired_dt"].fillna(end_day)
                 tat_days = (end_dt - d["delivered_dt"]).dt.total_seconds() / 86400.0
-                tat_days = tat_days[tat_days >= 0].dropna()  # beskyttelse mot rare datoer
+                tat_days = tat_days[(tat_days >= 0) & tat_days.notna()]
                 return float(tat_days.mean()) if not tat_days.empty else 0.0
 
-            avg_last = calc_avg_tat(last30)
-            avg_prev = calc_avg_tat(prev30)
-            delta = avg_last - avg_prev
+            tat_avg_last = calc_avg_tat_days(last30_tat)
+            tat_avg_prev = calc_avg_tat_days(prev30_tat)
+            tat_delta = tat_avg_last - tat_avg_prev
 
-            # Pil: ↑ = TAT øker (dårligere), ↓ = TAT synker (bedre), → = stabilt
-            if delta > 0.05:
-                arrow = "↑"
-            elif delta < -0.05:
-                arrow = "↓"
+            if tat_delta > 0.05:
+                tat_arrow = "↑"
+            elif tat_delta < -0.05:
+                tat_arrow = "↓"
             else:
-                arrow = "→"
+                tat_arrow = "→"
 
-            avg_text = f"{avg_last:.1f} dager"
-            sub_text = f"{arrow} {delta:+.1f} dager vs forrige 30"
+            tat_value = f"{tat_avg_last:.1f} dager"
+            tat_sub = f"{tat_arrow} {tat_delta:+.1f} dager vs forrige 30"
 
-            # KPI: Snitt reparert pr arbeidsdag (siste 30 arbeidsdager) + trend vs forrige 30 arbeidsdager
-            def _last_business_days(end_day, n=30):
-                # end_day er en date (f.eks. today)
-                end_ts = pd.Timestamp(end_day)
-                bdays = pd.bdate_range(end=end_ts, periods=n)
-                return [d.date() for d in bdays]
-
+            # -----------------------------
+            # KPI (høyre): Snitt reparert pr arbeidsdag (30 arb.dager) + trend vs forrige 30
+            # -----------------------------
             last_30_bd = _last_business_days(today, 30)
             prev_30_bd = _last_business_days(pd.Timestamp(last_30_bd[0]) - pd.Timedelta(days=1), 30)
 
-            # Reparasjoner for dette merket (uansett om de er inhouse eller ikke)
             rep_brand = df.dropna(subset=["Service repair date"]).copy()
-            rep_brand = rep_brand[rep_brand["Product brand"].astype(str).str.strip().str.casefold() == brand.casefold()].copy()
+            rep_brand = rep_brand[
+                rep_brand["Product brand"].astype(str).str.strip().str.casefold() == brand.casefold()
+            ].copy()
             rep_brand["rep_date"] = pd.to_datetime(rep_brand["Service repair date"], errors="coerce").dt.date
             rep_brand = rep_brand.dropna(subset=["rep_date"])
 
-            count_last = int(rep_brand[rep_brand["rep_date"].isin(last_30_bd)].shape[0])
-            avg_last = count_last / 30.0
+            rep_count_last = int(rep_brand[rep_brand["rep_date"].isin(last_30_bd)].shape[0])
+            rep_avg_last = rep_count_last / 30.0
 
-            count_prev = int(rep_brand[rep_brand["rep_date"].isin(prev_30_bd)].shape[0])
-            avg_prev = count_prev / 30.0
+            rep_count_prev = int(rep_brand[rep_brand["rep_date"].isin(prev_30_bd)].shape[0])
+            rep_avg_prev = rep_count_prev / 30.0
 
-            delta = avg_last - avg_prev
+            rep_delta = rep_avg_last - rep_avg_prev
 
-            if delta > 0.001:
-                arrow = "↑"
-            elif delta < -0.001:
-                arrow = "↓"
+            if rep_delta > 0.001:
+                rep_arrow = "↑"
+            elif rep_delta < -0.001:
+                rep_arrow = "↓"
             else:
-                arrow = "→"
+                rep_arrow = "→"
 
-            avg_text = f"{avg_last:.2f}"
-            sub_text = f"{arrow} {delta:+.2f} vs forrige 30"
+            rep_value = f"{rep_avg_last:.2f}"
+            rep_sub = f"{rep_arrow} {rep_delta:+.2f} vs forrige 30"
 
+            # -----------------------------
             # KPI-kort (3 kolonner)
+            # -----------------------------
             k1, k2, k3 = st.columns(3)
             with k1:
                 kpi(f"{brand} – Totalt inne", len(bdf))
             with k2:
-                kpi("Snitt TAT (30 dager)", avg_text, sub=sub_text)
+                kpi("Snitt TAT (30 dager)", tat_value, sub=tat_sub)
             with k3:
-                kpi("Snitt reparert (30 arb.dager)", avg_text, sub=sub_text)
-            # --- Diagram 1: status (gruppert), sortert synkende ---
+                kpi("Snitt reparert (30 arb.dager)", rep_value, sub=rep_sub)
+
+            # -----------------------------
+            # Diagram 1: status (gruppert), sortert synkende
+            # -----------------------------
             status_df = (
                 bdf["status_group"]
                 .value_counts(dropna=False)
@@ -1005,7 +1012,9 @@ elif selected == "Kunder":
             status_bar.update_layout(xaxis_title="Status", yaxis_title="Antall")
             status_bar.update_traces(textposition="outside", cliponaxis=False)
 
-            # --- Diagram 2: statusdato (kronologisk) ---
+            # -----------------------------
+            # Diagram 2: statusdato (kronologisk)
+            # -----------------------------
             date_df = (
                 bdf.assign(date=pd.to_datetime(bdf["Service status date"], errors="coerce").dt.date)
                    .dropna(subset=["date"])
@@ -1016,10 +1025,16 @@ elif selected == "Kunder":
             date_bar.update_layout(xaxis_title="Statusdato", yaxis_title="Antall")
             date_bar.update_traces(textposition="outside", cliponaxis=False)
 
-            two_cols(f"{brand} – Inhouse per status", status_bar,
-                     f"{brand} – Inhouse per statusdato", date_bar)
+            two_cols(
+                f"{brand} – Inhouse per status",
+                status_bar,
+                f"{brand} – Inhouse per statusdato",
+                date_bar,
+            )
 
+            # -----------------------------
             # Tabeller
+            # -----------------------------
             with st.expander("Vis tabell", expanded=False):
                 c1, c2 = st.columns(2)
 
