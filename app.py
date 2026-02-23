@@ -397,7 +397,7 @@ page_header(selected, today)
 # ---------------------
 # Views
 # ---------------------
-elif selected == "Dashboard":
+if selected == "Dashboard":
     # -----------------------------
     # Dashboard (one-glance)
     # -----------------------------
@@ -579,7 +579,7 @@ elif selected == "Dashboard":
             """
         )
 
-if selected == "Reparert":
+elif selected == "Reparert":
     repaired_today = filter_on_day(df, "Service repair date", today)
     total_repaired = len(repaired_today)
 
