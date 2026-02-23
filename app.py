@@ -339,20 +339,19 @@ if "day" not in st.session_state:
     st.session_state["day"] = default_day
 
 with st.sidebar:
-    # Strammere spacing rundt dato + knapp (kun sidebar)
-    st.markdown("""
-    <style>
-    section[data-testid="stSidebar"] .stMarkdown { margin-bottom: 0.25rem; }
-    section[data-testid="stSidebar"] .stDateInput { margin-top: -6px; margin-bottom: -10px; }
-    section[data-testid="stSidebar"] .stButton { margin-top: -6px; }
-    </style>
-    """, unsafe_allow_html=True)
+    # Liten label uten mye luft
+    st.caption("Vis dato")
 
-    st.markdown("**Vis dato**")
-
-    picked = st.date_input("", value=st.session_state["day"])
+    picked = st.date_input(
+        label="",
+        value=st.session_state["day"],
+        label_visibility="collapsed",
+    )
     if picked != st.session_state["day"]:
         st.session_state["day"] = picked
+
+    # Litt luft mellom datovelger og knappen
+    st.markdown("<div style='height:0.45rem'></div>", unsafe_allow_html=True)
 
     if st.button("I dag", use_container_width=True):
         st.session_state["day"] = today_oslo()
