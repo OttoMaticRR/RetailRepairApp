@@ -74,8 +74,8 @@ st.markdown(f"""
   display: flex;
   flex-direction: column;
   justify-content: center;       /* vertikalt midtstilt */
-  align-items: center;            /* horisontalt midtstilt */
-  text-align: center;             /* midtstill tekst */
+  align-items: center;           /* horisontalt midtstilt */
+  text-align: center;            /* midtstill tekst */
   background: #ffffff;
   color: #111827 !important;
   border-radius: 16px;
@@ -99,13 +99,19 @@ st.markdown(f"""
   text-align: center;
 }}
 
+/* Default: nøytral (IKKE grønn) */
 .kpi-sub {{
   font-size: 0.9rem;
-  color: #10b981 !important;
   margin-top: 6px;
   font-weight: 600;
   text-align: center;
+  color: #9CA3AF !important;
 }}
+
+/* Fargeklasser (må ha !important for å vinne) */
+.kpi-sub-green {{ color:#10b981 !important; }}
+.kpi-sub-red   {{ color:#ef4444 !important; }}
+.kpi-sub-gray  {{ color:#9CA3AF !important; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -246,24 +252,21 @@ def filter_today(df, date_col):
     return df[df[date_col].dt.date == today_oslo()]
 
 def kpi(label, value, sub=None, sub_color=None):
-    # sub_color kan være: "green", "red", "gray" eller en hex som "#10b981"
-    color_map = {
-        "green": "#10b981",
-        "red": "#ef4444",
-        "gray": "#9CA3AF",
-    }
-    css_color = color_map.get(sub_color, sub_color) if sub_color else None
+    # sub_color: "green", "red", "gray"
+    cls = ""
+    if sub_color == "green":
+        cls = "kpi-sub-green"
+    elif sub_color == "red":
+        cls = "kpi-sub-red"
+    elif sub_color == "gray":
+        cls = "kpi-sub-gray"
 
     st.markdown(
         f"""
         <div class="kpi-card">
           <div class="kpi-label">{label}</div>
           <div class="kpi-value">{value if value is not None else 0}</div>
-          {(
-              f'<div class="kpi-sub" style="color:{css_color} !important;">{sub}</div>'
-              if (sub and css_color)
-              else (f'<div class="kpi-sub">{sub}</div>' if sub else "")
-          )}
+          {f'<div class="kpi-sub {cls}">{sub}</div>' if sub else ''}
         </div>
         """,
         unsafe_allow_html=True
