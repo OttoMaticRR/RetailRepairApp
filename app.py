@@ -553,55 +553,55 @@ if selected == "Dashboard":
         kpi("Snitt reparert pr dag totalt (30 arb.dager)", kpi3_value, sub=kpi3_sub, sub_color=c3)
 
    # -----------------------------
-# Graf 1: Innlevert pr merke (ALLE som har status "Innlevert" nå)
-# Graf 2: Reparert pr merke (VALGT DATO)
-# -----------------------------
+    # Graf 1: Innlevert pr merke (ALLE som har status "Innlevert" nå)
+    # Graf 2: Reparert pr merke (VALGT DATO)
+    # -----------------------------
 
-# Graf 1: alle som har status Innlevert (uansett statusdato)
-delivered_now = d[d["status_clean"] == "innlevert"].copy()
+    # Graf 1: alle som har status Innlevert (uansett statusdato)
+    delivered_now = d[d["status_clean"] == "innlevert"].copy()
 
-delivered_df = (
-    delivered_now["brand"]
-    .value_counts()
-    .rename_axis("Merke")
-    .reset_index(name="Antall")
-    .sort_values("Antall", ascending=False)
-)
-
-if delivered_df.empty:
-    fig_del = px.bar(pd.DataFrame({"Merke": [], "Antall": []}), x="Merke", y="Antall")
-else:
-    fig_del = px.bar(delivered_df, x="Merke", y="Antall", text="Antall")
-    fig_del.update_layout(
-        xaxis_title="Merke",
-        yaxis_title="Antall",
-        xaxis={"categoryorder": "array", "categoryarray": delivered_df["Merke"].tolist()},
+    delivered_df = (
+        delivered_now["brand"]
+        .value_counts()
+        .rename_axis("Merke")
+        .reset_index(name="Antall")
+        .sort_values("Antall", ascending=False)
     )
-    fig_del.update_traces(textposition="outside", cliponaxis=False)
 
-# Graf 2: reparert på valgt dato (uendret)
-repaired_today = d[d["rep_date"] == today].copy()
+    if delivered_df.empty:
+        fig_del = px.bar(pd.DataFrame({"Merke": [], "Antall": []}), x="Merke", y="Antall")
+    else:
+        fig_del = px.bar(delivered_df, x="Merke", y="Antall", text="Antall")
+        fig_del.update_layout(
+            xaxis_title="Merke",
+            yaxis_title="Antall",
+            xaxis={"categoryorder": "array", "categoryarray": delivered_df["Merke"].tolist()},
+        )
+        fig_del.update_traces(textposition="outside", cliponaxis=False)
 
-repaired_df = (
-    repaired_today["brand"]
-    .value_counts()
-    .rename_axis("Merke")
-    .reset_index(name="Antall")
-    .sort_values("Antall", ascending=False)
-)
+    # Graf 2: reparert på valgt dato (uendret)
+    repaired_today = d[d["rep_date"] == today].copy()
 
-if repaired_df.empty:
-    fig_rep = px.bar(pd.DataFrame({"Merke": [], "Antall": []}), x="Merke", y="Antall")
-else:
-    fig_rep = px.bar(repaired_df, x="Merke", y="Antall", text="Antall")
-    fig_rep.update_layout(
-        xaxis_title="Merke",
-        yaxis_title="Antall",
-        xaxis={"categoryorder": "array", "categoryarray": repaired_df["Merke"].tolist()},
+    repaired_df = (
+        repaired_today["brand"]
+        .value_counts()
+        .rename_axis("Merke")
+        .reset_index(name="Antall")
+        .sort_values("Antall", ascending=False)
     )
-    fig_rep.update_traces(textposition="outside", cliponaxis=False)
 
-two_cols("Innlevert pr merke (alle åpne innleverte)", fig_del, "Reparert pr merke (valgt dato)", fig_rep)
+    if repaired_df.empty:
+        fig_rep = px.bar(pd.DataFrame({"Merke": [], "Antall": []}), x="Merke", y="Antall")
+    else:
+        fig_rep = px.bar(repaired_df, x="Merke", y="Antall", text="Antall")
+        fig_rep.update_layout(
+            xaxis_title="Merke",
+            yaxis_title="Antall",
+            xaxis={"categoryorder": "array", "categoryarray": repaired_df["Merke"].tolist()},
+        )
+        fig_rep.update_traces(textposition="outside", cliponaxis=False)
+
+    two_cols("Innlevert pr merke (alle åpne innleverte)", fig_del, "Reparert pr merke (valgt dato)", fig_rep)
 
     with st.expander("Hvordan beregnes dette?", expanded=False):
         st.markdown(
