@@ -336,9 +336,18 @@ df = fetch_data()
 default_day = latest_date_in_data(df)
 
 with st.sidebar:
-    selected_day = st.date_input("Vis dato", value=default_day)
+    c_date, c_today = st.columns([4, 1])
 
-# Bruk selected_day som “dashboard-dato”
+    with c_date:
+        selected_day = st.date_input("Vis dato", value=default_day, key="selected_day")
+
+    with c_today:
+        st.write("")
+        st.write("")
+        if st.button("I dag", use_container_width=True):
+            st.session_state["selected_day"] = today_oslo()   # <-- HER: faktisk i dag
+            st.rerun()
+
 today = selected_day
 
 
