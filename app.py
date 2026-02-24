@@ -759,7 +759,7 @@ elif selected == "Innlevert":
         brand_bar = px.bar(pd.DataFrame({"Merke": [], "Antall": []}), x="Merke", y="Antall")
         date_bar  = px.bar(pd.DataFrame({"date": [], "Antall": []}), x="date", y="Antall")
 
-    two_cols("Innlevert per merke (alle)", brand_bar, "Innlevert per statusdato (alle)", date_bar)
+    two_cols("Innlevert per merke", brand_bar, "Innlevert per statusdato", date_bar)
 
 
 
