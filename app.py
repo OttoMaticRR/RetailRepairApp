@@ -194,6 +194,7 @@ def fetch_data():
     "Product brand",
     "Service technician",
     "Service priority",
+    "Service number",
 ]
 
     # Case-insensitive rename med normalisering
@@ -1301,22 +1302,38 @@ elif selected == "Kunder":
                      f"{brand} – Inhouse per statusdato", date_bar)
 
             # Tabeller
-            with st.expander("Vis tabell", expanded=False):
-                c1, c2 = st.columns(2)
+            with st.expander("Åpne saker (sortert på eldste innlevert)", expanded=False):
+                # Bygg en enkel, sorterbar saksliste
+                case_df = b_open.copy()
 
-                c1.markdown("#### Status (antall)")
-                c1.dataframe(
-                    _counts_table(b_open["status_group"], "Status", "Antall"),
-                    use_container_width=True,
-                    hide_index=True,
+                # Sørg for nødvendige kolonner finnes
+                for col in ["Service number", "Service status", "Service status date", "Service date product received"]:
+                    if col not in case_df.columns:
+                        case_df[col] = pd.NA
+    
+                # Parse datoer robust (hvis de allerede er datetime så går dette fint)
+                case_df["Innlevert dato"] = pd.to_datetime(case_df["Service date product received"], errors="coerce")
+                case_df["Statusdato"] = pd.to_datetime(case_df["Service status date"], errors="coerce")
+
+                # Rens tekst
+                case_df["Servicenr"] = (
+                    pd.Series(case_df["Service number"], dtype=object).astype(str).str.strip()
+                    .replace({"": "Ukjent", "nan": "Ukjent", "None": "Ukjent", "NaN": "Ukjent"})
+                )
+                case_df["Status"] = (
+                pd.Series(case_df["Service status"], dtype=object).astype(str).str.strip()
+                .replace({"": "Ukjent", "nan": "Ukjent", "None": "Ukjent", "NaN": "Ukjent"})
                 )
 
-                c2.markdown("#### Tekniker (antall)")
-                c2.dataframe(
-                    _counts_table(b_open["Service technician"], "Tekniker", "Antall"),
-                    use_container_width=True,
-                    hide_index=True,
-                )
+                # Velg kolonner + sorter på eldste innlevert først
+                out = case_df[["Servicenr", "Status", "Statusdato", "Innlevert dato"]].copy()
+                out = out.sort_values(["Innlevert dato", "Statusdato"], ascending=[True, True], na_position="last")
+
+                # (Valgfritt) gjør datoene penere i tabellen
+                out["Innlevert dato"] = out["Innlevert dato"].dt.date
+                out["Statusdato"] = out["Statusdato"].dt.date
+
+                st.dataframe(out, use_container_width=True, hide_index=True)
 
 
 st.markdown("---")
