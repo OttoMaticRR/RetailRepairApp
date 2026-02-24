@@ -614,7 +614,7 @@ if selected == "Dashboard":
         )
         fig_rep.update_traces(textposition="outside", cliponaxis=False)
 
-    two_cols("Innlevert pr merke (alle åpne innleverte)", fig_del, "Reparert pr merke (valgt dato)", fig_rep)
+    two_cols("Innlevert pr merke", fig_del, "Reparert pr merke", fig_rep)
 
     with st.expander("Hvordan beregnes dette?", expanded=False):
         st.markdown(
