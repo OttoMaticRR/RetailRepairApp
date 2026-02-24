@@ -167,7 +167,7 @@ def fetch_data():
     sh = gc.open_by_key(GSHEETS_SHEET_ID)
     ws = sh.worksheet(GSHEETS_WORKSHEET)
 
-    values = ws.get_all_values()  # <- henter “rått” fra Sheets
+    values = ws.get_all_values()  # rått fra Sheets
     if not values:
         return pd.DataFrame()
 
@@ -176,7 +176,7 @@ def fetch_data():
         x = x.replace("\u00A0", " ")   # NBSP
         x = x.replace("\u200b", "")    # zero-width
         x = x.replace("\ufeff", "")    # BOM
-        x = " ".join(x.split())        # kollaps multiple spaces
+        x = " ".join(x.split())        # kollaps spaces
         return x.strip()
 
     headers = [norm_header(h) for h in values[0]]
@@ -187,30 +187,29 @@ def fetch_data():
     df = df.replace("", pd.NA).dropna(how="all")
 
     expected = [
-    "Service status date",
-    "Service status",
-    "Service repair date",
-    "Service date product received", 
-    "Product brand",
-    "Service technician",
-    "Service priority",
-    "Service number",
-]
+        "Service status date",
+        "Service status",
+        "Service repair date",
+        "Service date product received",
+        "Product brand",
+        "Service technician",
+        "Service priority",
+        "Service number",
+    ]
 
-    # Case-insensitive rename med normalisering
+    # Case-insensitive rename (normalisert)
     cols_norm = {norm_header(c).casefold(): c for c in df.columns}
     for wanted in expected:
         key = wanted.casefold()
         if wanted not in df.columns and key in cols_norm:
             df.rename(columns={cols_norm[key]: wanted}, inplace=True)
 
-    # Hvis fortsatt mangler (da er det faktisk feil header i arket)
+    # Manglende kolonner -> NA
     for col in expected:
         if col not in df.columns:
             df[col] = pd.NA
 
     def clean_date_series(s: pd.Series) -> pd.Series:
-        # rens tekst før parsing
         txt = (
             s.astype(str)
              .str.replace("\u00A0", " ", regex=False)
@@ -220,7 +219,7 @@ def fetch_data():
              .str.replace(r"\s+", " ", regex=True)
              .str.strip()
         )
-        txt = txt.replace({"": pd.NA, "nan": pd.NA, "None": pd.NA, "NaN": pd.NA})
+        txt = txt.replace({"": pd.NA, "nan": pd.NA, "None": pd.NA, "NaN": pd.NA, "<NA>": pd.NA})
 
         # 1) vanlig parsing
         dt = pd.to_datetime(txt, errors="coerce", dayfirst=True)
@@ -229,18 +228,21 @@ def fetch_data():
         num = pd.to_numeric(txt, errors="coerce")
         serial_mask = dt.isna() & num.notna() & (num > 20000) & (num < 60000)
         if serial_mask.any():
-            dt.loc[serial_mask] = pd.to_datetime(
-                num.loc[serial_mask], unit="D", origin="1899-12-30"
-            )
+            dt.loc[serial_mask] = pd.to_datetime(num.loc[serial_mask], unit="D", origin="1899-12-30")
 
         return dt
 
     for dc in ["Service status date", "Service repair date", "Service date product received"]:
         df[dc] = clean_date_series(df[dc])
 
-    # trim tekstkolonner
-    for sc in ["Service status", "Product brand", "Service technician"]:
-        df[sc] = df[sc].astype(str).str.replace("\u00A0", " ", regex=False).str.strip()
+    # Trim tekstkolonner (VIKTIG: inkluder priority + number)
+    for sc in ["Service status", "Product brand", "Service technician", "Service priority", "Service number"]:
+        df[sc] = (
+            df[sc]
+            .astype(str)
+            .str.replace("\u00A0", " ", regex=False)
+            .str.strip()
+        )
 
     return df
 
@@ -285,23 +287,32 @@ def two_cols(fig_left_title, fig_left, fig_right_title, fig_right):
         st.plotly_chart(fig_right, use_container_width=True)
 
 def _counts_table(series: pd.Series, left_header: str, right_header: str) -> pd.DataFrame:
-    # 1) Tving til "object"-strenger (ikke Pandas StringDtype)
-    s = pd.Series(series, dtype=object).astype(str).str.strip()
+    s = pd.Series(series, dtype=object)
 
-    # 2) Erstatt tomt/NA med "Ukjent"
-    s = s.replace({"": "Ukjent", "nan": "Ukjent", "None": "Ukjent", "NaN": "Ukjent"})
+    # Behold NA før vi gjør str()
+    s = s.where(s.notna(), other="Ukjent")
+    s = s.astype(str).str.strip()
 
-    # 3) Tell og bygg tabell
+    # Rydd opp “spøkelsesverdier”
+    s = s.replace({
+        "": "Ukjent",
+        "nan": "Ukjent",
+        "None": "Ukjent",
+        "NaN": "Ukjent",
+        "<NA>": "Ukjent",
+        "N/A": "Ukjent",
+    })
+
     out = (
         s.value_counts(dropna=False)
          .rename_axis(left_header)
          .reset_index(name=right_header)
     )
 
-    # 4) Nummerkolonne og sikre enkle dtypes
     out.insert(0, "Nr", range(1, len(out) + 1))
     out = out.astype({"Nr": int, right_header: int})
     out[left_header] = out[left_header].astype(object)
+    return out
 
 def avg_tat_days(df_in: pd.DataFrame, end_day) -> float:
     """
