@@ -1329,9 +1329,12 @@ elif selected == "Kunder":
                 out = case_df[["Servicenr", "Status", "Statusdato", "Innlevert dato"]].copy()
                 out = out.sort_values(["Innlevert dato", "Statusdato"], ascending=[True, True], na_position="last")
 
-                # (Valgfritt) gjør datoene penere i tabellen
-                out["Innlevert dato"] = out["Innlevert dato"].dt.date
-                out["Statusdato"] = out["Statusdato"].dt.date
+                out["Innlevert dato"] = pd.to_datetime(out["Innlevert dato"], errors="coerce").dt.strftime("%d.%m.%Y")
+                out["Statusdato"] = pd.to_datetime(out["Statusdato"], errors="coerce").dt.strftime("%d.%m.%Y")
+
+                # Hvis du vil at tomme datoer skal vises tomt (ikke "NaT")
+                out["Innlevert dato"] = out["Innlevert dato"].fillna("")
+                out["Statusdato"] = out["Statusdato"].fillna("")
 
                 st.dataframe(out, use_container_width=True, hide_index=True)
 
