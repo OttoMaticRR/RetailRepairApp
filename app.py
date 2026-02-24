@@ -968,7 +968,7 @@ elif selected == "Historikk":
     else:
         date_only = rep_series.dt.date
 
-    # Antall reparerte per dato
+    # Antall reparerte per dato (kun dager som faktisk har reparasjoner)
     hist = (
         pd.DataFrame({"date": date_only})
         .dropna()
@@ -981,39 +981,45 @@ elif selected == "Historikk":
         st.info("Ingen reparasjoner i datasettet.")
         st.stop()
 
-    # Linjegraf (bruker alle datoer)
-    fig_hist = px.line(hist, x="date", y="Repairs", markers=True)
+    # -----------------------------
+    # Ukesvis graf (starter ved første uke med data)
+    # -----------------------------
+    hist_week = hist.copy()
+    hist_week["week_start"] = pd.to_datetime(hist_week["date"]).dt.to_period("W-MON").dt.start_time
+
+    weekly = (
+        hist_week.groupby("week_start", as_index=False)["Repairs"]
+        .sum()
+        .sort_values("week_start")
+    )
+
+    # Viktig: Ikke vis "flatt" før første datapunkt (weekly inneholder kun uker med data)
+    fig_hist = px.line(weekly, x="week_start", y="Repairs", markers=True)
     fig_hist.update_layout(
-        xaxis_title="Dato",
+        xaxis_title="Uke (start mandag)",
         yaxis_title="Antall reparert",
-        hovermode="x unified"
+        hovermode="x unified",
     )
     st.plotly_chart(fig_hist, use_container_width=True)
 
-    # Bruk datoen fra sidebaren (today) – ingen slider
-    selected_date = today
+    # -----------------------------
+    # Tabeller for valgt dato (bruker venstre datovelger = today)
+    # -----------------------------
+    selected_date = today  # bruker kun globalt valgt dato (ingen slider her)
 
-    # Hvis valgt dato ikke finnes i historikk, finn nærmeste tidligere dato med data
-    if selected_date not in set(hist["date"]):
-        prev = hist[hist["date"] <= selected_date]
-        if prev.empty:
-            st.warning(f"Ingen reparasjoner før {selected_date:%d.%m.%Y}.")
-            st.stop()
-        selected_date = prev["date"].iloc[-1]
-        st.info(f"Ingen reparasjoner på {today:%d.%m.%Y}. Viser {selected_date:%d.%m.%Y} i stedet.")
-
+    # Filtrer dagens/valgt dato fra date_only (som er en "date"-serie)
     day_df = df[date_only == selected_date]
 
-    with st.expander(f"Tabeller for valgt dato ({selected_date:%d.%m.%Y})", expanded=True):
+    with st.expander("Tabeller for valgt dato", expanded=True):
         c1, c2 = st.columns(2)
-        c1.markdown("#### Reparert per merke")
+        c1.markdown(f"#### Reparert per merke ({selected_date:%d.%m.%Y})")
         c1.dataframe(
             _counts_table(day_df["Product brand"], "Brand", "Repairs"),
             use_container_width=True,
             hide_index=True,
         )
 
-        c2.markdown("#### Reparert per tekniker")
+        c2.markdown(f"#### Reparert per tekniker ({selected_date:%d.%m.%Y})")
         c2.dataframe(
             _counts_table(day_df["Service technician"], "Technician", "Repairs"),
             use_container_width=True,
