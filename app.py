@@ -982,10 +982,14 @@ elif selected == "Historikk":
         st.stop()
 
     # -----------------------------
-    # Ukesvis graf (starter ved første uke med data)
+    # Ukesvis graf (uke = mandag–søndag)
     # -----------------------------
     hist_week = hist.copy()
-    hist_week["week_start"] = pd.to_datetime(hist_week["date"]).dt.to_period("W-MON").dt.start_time
+    hist_week["date_ts"] = pd.to_datetime(hist_week["date"])
+
+    # Mandag i samme uke (0=mandag, 6=søndag)
+    hist_week["week_start"] = hist_week["date_ts"] - pd.to_timedelta(hist_week["date_ts"].dt.weekday, unit="D")
+    hist_week["week_start"] = hist_week["week_start"].dt.normalize()
 
     weekly = (
         hist_week.groupby("week_start", as_index=False)["Repairs"]
