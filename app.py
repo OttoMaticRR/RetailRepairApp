@@ -1302,7 +1302,7 @@ elif selected == "Kunder":
                      f"{brand} – Inhouse per statusdato", date_bar)
 
             # Tabeller
-            with st.expander("Åpne saker (sortert på eldste innlevert)", expanded=False):
+            with st.expander("Åpne saker", expanded=False):
                 # Bygg en enkel, sorterbar saksliste
                 case_df = b_open.copy()
 
