@@ -1183,8 +1183,9 @@ elif selected == "Kunder":
         return ("→", "gray")
 
     brands = (
-        _clean_text(base["Product brand"], unknown="")
-        .replace({"": pd.NA, "Ukjent": pd.NA, "<NA>": pd.NA})
+        base["Product brand"].astype(str).str.strip()
+        .replace({"": "Ukjent", "nan": "Ukjent", "None": "Ukjent", "NaN": "Ukjent", "<NA>": "Ukjent"})
+        .replace({"Ukjent": pd.NA})   # så "Ukjent" ikke blir en egen fane
         .dropna()
         .unique()
         .tolist()
