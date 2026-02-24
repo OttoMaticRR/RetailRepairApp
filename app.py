@@ -979,38 +979,46 @@ elif selected == "Historikk":
 
     if hist.empty:
         st.info("Ingen reparasjoner i datasettet.")
-    else:
-        # --- KUN linjediagrammet filtreres ---
-        min_repairs = 2  # vis bare dager med >= 2 i grafen
-        hist_for_chart = hist[hist["Repairs"] >= min_repairs]
+        st.stop()
 
-        if hist_for_chart.empty:
-            st.info(f"Ingen dager med {min_repairs} eller flere reparasjoner å vise i grafen.")
-        else:
-            fig_hist = px.line(hist_for_chart, x="date", y="Repairs", markers=True)
-            fig_hist.update_layout(xaxis_title="Dato", yaxis_title="Antall reparert", hovermode="x unified")
-            st.plotly_chart(fig_hist, use_container_width=True)
+    # Linjegraf (bruker alle datoer)
+    fig_hist = px.line(hist, x="date", y="Repairs", markers=True)
+    fig_hist.update_layout(
+        xaxis_title="Dato",
+        yaxis_title="Antall reparert",
+        hovermode="x unified"
+    )
+    st.plotly_chart(fig_hist, use_container_width=True)
 
-        # --- Slider og tabeller bruker ALLE datoene (ufiltrert) ---
-        all_dates = hist["date"].tolist()
-        selected_date = st.select_slider(
-            "Velg dato",
-            options=all_dates,
-            value=all_dates[-1],
-            format_func=lambda d: d.strftime("%d.%m.%Y"),
+    # Bruk datoen fra sidebaren (today) – ingen slider
+    selected_date = today
+
+    # Hvis valgt dato ikke finnes i historikk, finn nærmeste tidligere dato med data
+    if selected_date not in set(hist["date"]):
+        prev = hist[hist["date"] <= selected_date]
+        if prev.empty:
+            st.warning(f"Ingen reparasjoner før {selected_date:%d.%m.%Y}.")
+            st.stop()
+        selected_date = prev["date"].iloc[-1]
+        st.info(f"Ingen reparasjoner på {today:%d.%m.%Y}. Viser {selected_date:%d.%m.%Y} i stedet.")
+
+    day_df = df[date_only == selected_date]
+
+    with st.expander(f"Tabeller for valgt dato ({selected_date:%d.%m.%Y})", expanded=True):
+        c1, c2 = st.columns(2)
+        c1.markdown("#### Reparert per merke")
+        c1.dataframe(
+            _counts_table(day_df["Product brand"], "Brand", "Repairs"),
+            use_container_width=True,
+            hide_index=True,
         )
 
-        day_df = df[date_only == selected_date]
-
-        with st.expander("Tabeller for valgt dato", expanded=True):
-            c1, c2 = st.columns(2)
-            c1.markdown(f"#### Reparert per merke ({selected_date:%d.%m.%Y})")
-            c1.dataframe(_counts_table(day_df["Product brand"], "Brand", "Repairs"),
-                         use_container_width=True, hide_index=True)
-            c2.markdown(f"#### Reparert per tekniker ({selected_date:%d.%m.%Y})")
-            c2.dataframe(_counts_table(day_df["Service technician"], "Technician", "Repairs"),
-                         use_container_width=True, hide_index=True)
-
+        c2.markdown("#### Reparert per tekniker")
+        c2.dataframe(
+            _counts_table(day_df["Service technician"], "Technician", "Repairs"),
+            use_container_width=True,
+            hide_index=True,
+        )
 
 elif selected == "Teknikere":
     # Bruk kun rader med reparasjonsdato
