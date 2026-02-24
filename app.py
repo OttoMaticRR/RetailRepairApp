@@ -358,7 +358,18 @@ def filter_on_day(df: pd.DataFrame, date_col: str, day):
 # ---------------------
 # Data
 # ---------------------
-df = fetch_data()
+df_raw = fetch_data()
+
+# Standard datasett uten SPS (brukes av alle faner)
+if "Service priority" in df_raw.columns:
+    prio = df_raw["Service priority"].astype(str).str.strip().str.casefold()
+    df = df_raw[prio != "sps"].copy()
+    df_sps = df_raw[prio == "sps"].copy()   # (valgfritt) til egen SPS-fane senere
+else:
+    df = df_raw.copy()
+    df_sps = pd.DataFrame()
+
+# Default dato basert på filtrert data (uten SPS)
 default_day = latest_date_in_data(df)
 
 # Source-of-truth i session_state
@@ -377,8 +388,8 @@ with st.sidebar:
     if picked != st.session_state["day"]:
         st.session_state["day"] = picked
 
-    # Litt luft mellom datovelger og knappen
-    st.markdown("<div style='height:0.45rem'></div>", unsafe_allow_html=True)
+    # Litt luft mellom datovelger og knappen (justér tallet om du vil ha mindre/mer)
+    st.markdown("<div style='height:0.25rem'></div>", unsafe_allow_html=True)
 
     if st.button("I dag", use_container_width=True):
         st.session_state["day"] = today_oslo()
