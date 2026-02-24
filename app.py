@@ -365,7 +365,18 @@ def filter_on_day(df: pd.DataFrame, date_col: str, day):
 
     return out
 
-
+def _clean_text(s: pd.Series, unknown="Ukjent") -> pd.Series:
+    x = pd.Series(s, dtype=object)
+    x = x.where(x.notna(), other=unknown)   # viktig: NA før astype(str)
+    x = x.astype(str).str.strip()
+    return x.replace({
+        "": unknown,
+        "nan": unknown,
+        "None": unknown,
+        "NaN": unknown,
+        "<NA>": unknown,
+        "N/A": unknown,
+    })
 
 # ---------------------
 # Data
@@ -1171,10 +1182,9 @@ elif selected == "Kunder":
             return ("↓", "red" if good_when_up else "green")
         return ("→", "gray")
 
-    # Finn unike merker automatisk (renset)
     brands = (
         _clean_text(base["Product brand"], unknown="")
-        .replace({"": pd.NA})
+        .replace({"": pd.NA, "Ukjent": pd.NA, "<NA>": pd.NA})
         .dropna()
         .unique()
         .tolist()
