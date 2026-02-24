@@ -193,6 +193,7 @@ def fetch_data():
     "Service date product received", 
     "Product brand",
     "Service technician",
+    "Service priority",
 ]
 
     # Case-insensitive rename med normalisering
