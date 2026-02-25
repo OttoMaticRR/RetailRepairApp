@@ -455,7 +455,7 @@ with st.sidebar:
             st.rerun()
 
     with c_pick:
-        if st.button("Endre", use_container_width=True):
+        if st.button("Dato", use_container_width=True):
             st.session_state["show_datepicker"] = not st.session_state["show_datepicker"]
 
     # --- Datepicker vises bare når du trykker Endre ---
