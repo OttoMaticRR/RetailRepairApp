@@ -392,31 +392,62 @@ else:
     df = df_raw.copy()
     df_sps = pd.DataFrame()
 
-# Default dato basert på filtrert data (uten SPS)
 default_day = latest_date_in_data(df)
 
 # Source-of-truth i session_state
 if "day" not in st.session_state:
     st.session_state["day"] = default_day
 
+# Toggle for datepicker
+if "show_datepicker" not in st.session_state:
+    st.session_state["show_datepicker"] = False
+
 with st.sidebar:
-    # Liten label uten mye luft
     st.caption("Vis dato")
 
-    picked = st.date_input(
-        label="",
-        value=st.session_state["day"],
-        label_visibility="collapsed",
+    # --- Vis dato som tekst (dd.mm.yyyy) ---
+    st.markdown(
+        f"<div style='font-size:1.05rem; font-weight:700; padding: 0.25rem 0.1rem;'>"
+        f"{st.session_state['day']:%d.%m.%Y}</div>",
+        unsafe_allow_html=True,
     )
-    if picked != st.session_state["day"]:
-        st.session_state["day"] = picked
 
-    # Litt luft mellom datovelger og knappen (justér tallet om du vil ha mindre/mer)
+    # --- Piler: forrige / neste dag ---
+    c_prev, c_next = st.columns(2)
+    with c_prev:
+        if st.button("←", use_container_width=True, help="Forrige dag"):
+            st.session_state["day"] = st.session_state["day"] - pd.Timedelta(days=1)
+            st.rerun()
+    with c_next:
+        if st.button("→", use_container_width=True, help="Neste dag"):
+            st.session_state["day"] = st.session_state["day"] + pd.Timedelta(days=1)
+            st.rerun()
+
+    # Litt luft
     st.markdown("<div style='height:0.25rem'></div>", unsafe_allow_html=True)
 
-    if st.button("I dag", use_container_width=True):
-        st.session_state["day"] = today_oslo()
-        st.rerun()
+    # --- Knapper: I dag + Endre (datepicker) ---
+    c_today, c_pick = st.columns(2)
+    with c_today:
+        if st.button("I dag", use_container_width=True):
+            st.session_state["day"] = today_oslo()
+            st.rerun()
+
+    with c_pick:
+        if st.button("Endre", use_container_width=True):
+            st.session_state["show_datepicker"] = not st.session_state["show_datepicker"]
+
+    # --- Datepicker vises bare når du trykker Endre ---
+    if st.session_state["show_datepicker"]:
+        picked = st.date_input(
+            label="",
+            value=st.session_state["day"],
+            label_visibility="collapsed",
+        )
+        if picked != st.session_state["day"]:
+            st.session_state["day"] = picked
+            st.session_state["show_datepicker"] = False
+            st.rerun()
 
 # Bruk valgt dato overalt i dashboardet
 today = st.session_state["day"]
