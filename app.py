@@ -143,12 +143,6 @@ def require_login():
 
 require_login()
 
-with st.sidebar:
-    if st.button("Logout"):
-        for k in ["authenticated"]:
-            if k in st.session_state: del st.session_state[k]
-        st.rerun()
-
 # ---------------------
 # Google Sheets client
 # ---------------------
@@ -496,8 +490,19 @@ with st.sidebar:
                 "border-radius": "12px",
             },
             "nav-link-selected": {"background-color": "#ef4444", "color": "white"},
-        },    
+        },
     )
+
+    # Spacer som skyver innhold ned
+    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='flex: 1 1 auto; height: 18vh;'></div>", unsafe_allow_html=True)
+
+    # Logout nederst (slik du peker på)
+    if st.button("Logout", use_container_width=True):
+        for k in ["authenticated"]:
+            if k in st.session_state:
+                del st.session_state[k]
+        st.rerun()
 
     st.markdown('<div class="sidebar-footer">Secure dashboard</div>', unsafe_allow_html=True)
 
