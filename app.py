@@ -1211,9 +1211,19 @@ elif selected == "Kunder":
         st.info("Ingen enheter i inhouse.")
         st.stop()
 
+    # ---------- Helpers (kun for denne fanen) ----------
     def _clean_text(s: pd.Series, unknown="Ukjent") -> pd.Series:
-        x = pd.Series(s, dtype=object).astype(str).str.strip()
-        return x.replace({"": unknown, "nan": unknown, "None": unknown, "NaN": unknown})
+        x = pd.Series(s, dtype=object)
+        x = x.where(x.notna(), other=unknown)      # behold ekte NA før str()
+        x = x.astype(str).str.strip()
+        return x.replace({
+            "": unknown,
+            "nan": unknown,
+            "None": unknown,
+            "NaN": unknown,
+            "<NA>": unknown,
+            "N/A": unknown,
+        })
 
     def _last_business_days(end_day, n=30):
         end_ts = pd.Timestamp(end_day)
@@ -1227,10 +1237,10 @@ elif selected == "Kunder":
             return ("↓", "red" if good_when_up else "green")
         return ("→", "gray")
 
+    # ---------- Brand tabs ----------
     brands = (
-        base["Product brand"].astype(str).str.strip()
-        .replace({"": "Ukjent", "nan": "Ukjent", "None": "Ukjent", "NaN": "Ukjent", "<NA>": "Ukjent"})
-        .replace({"Ukjent": pd.NA})   # så "Ukjent" ikke blir en egen fane
+        _clean_text(base["Product brand"], unknown="Ukjent")
+        .replace({"Ukjent": pd.NA})
         .dropna()
         .unique()
         .tolist()
@@ -1243,7 +1253,7 @@ elif selected == "Kunder":
 
     tabs = st.tabs(brands)
 
-    # Pre-rens alt (for gjenbruk)
+    # ---------- Pre-rens hele datasettet (for gjenbruk) ----------
     d = df.copy()
     d["brand"] = _clean_text(d["Product brand"], unknown="Ukjent")
     d["tech"] = _clean_text(d["Service technician"], unknown="Ukjent")
@@ -1261,9 +1271,9 @@ elif selected == "Kunder":
     last_30_bd = _last_business_days(today, 30)
     prev_30_bd = _last_business_days(pd.Timestamp(last_30_bd[0]) - pd.Timedelta(days=1), 30)
 
+    # ---------- Per brand ----------
     for tab, brand in zip(tabs, brands):
         with tab:
-            # Åpne saker for dette merket (inhouse)
             b_open = d[(d["brand"].str.casefold() == brand.casefold()) & (d["repaired_dt"].isna())].copy()
 
             if b_open.empty:
@@ -1288,7 +1298,7 @@ elif selected == "Kunder":
                 tat_now_avg = float(tat_open_days.mean()) if not tat_open_days.empty else 0.0
                 oldest_open_days = int(tat_open_days.max()) if not tat_open_days.empty else 0
 
-            # Trend måles på ferdige saker (for å gi stabil pil)
+            # Trend på ferdige saker
             closed_brand = d[
                 (d["brand"].str.casefold() == brand.casefold())
                 & d["received_dt"].notna()
@@ -1309,7 +1319,6 @@ elif selected == "Kunder":
             tat_closed_prev = _avg_tat_closed_days(closed_prev)
             tat_delta = tat_closed_last - tat_closed_prev
 
-            # TAT trend: ned er bra
             tat_arrow, tat_color = _trend_arrow_color(tat_delta, good_when_up=False, eps=0.2)
 
             tat_value = f"{tat_now_avg:.1f} dager"
@@ -1327,13 +1336,12 @@ elif selected == "Kunder":
             rep_avg_prev = count_prev / 30.0
             rep_delta = rep_avg_last - rep_avg_prev
 
-            # reparert trend: opp er bra
             rep_arrow, rep_color = _trend_arrow_color(rep_delta, good_when_up=True, eps=0.05)
 
             rep_value = f"{rep_avg_last:.2f}"
             rep_sub = f"{rep_arrow} {rep_delta:+.2f} vs forrige 30"
 
-            # KPI-kort (3 kolonner)
+            # KPI-kort
             k1, k2, k3 = st.columns(3)
             with k1:
                 kpi(f"{brand} – Totalt inne", len(b_open))
@@ -1342,7 +1350,7 @@ elif selected == "Kunder":
             with k3:
                 kpi("Snitt reparert (30 arb.dager)", rep_value, sub=rep_sub, sub_color=rep_color)
 
-            # --- Diagram 1: status (gruppert), sortert synkende ---
+            # Diagram 1: status
             status_df = (
                 b_open["status_group"]
                 .value_counts(dropna=False)
@@ -1354,7 +1362,7 @@ elif selected == "Kunder":
             status_bar.update_layout(xaxis_title="Status", yaxis_title="Antall")
             status_bar.update_traces(textposition="outside", cliponaxis=False)
 
-            # --- Diagram 2: statusdato (kronologisk) ---
+            # Diagram 2: statusdato
             date_df = (
                 b_open.assign(date=pd.to_datetime(b_open["Service status date"], errors="coerce").dt.date)
                     .dropna(subset=["date"])
@@ -1368,42 +1376,36 @@ elif selected == "Kunder":
             two_cols(f"{brand} – Inhouse per status", status_bar,
                      f"{brand} – Inhouse per statusdato", date_bar)
 
-            # Tabeller
+            # -----------------------------
+            # Tabell: Åpne saker (riktig sort + norsk datoformat)
+            # -----------------------------
             with st.expander("Åpne saker", expanded=False):
-                # Bygg en enkel, sorterbar saksliste
                 case_df = b_open.copy()
 
                 # Sørg for nødvendige kolonner finnes
                 for col in ["Service number", "Service status", "Service status date", "Service date product received"]:
                     if col not in case_df.columns:
                         case_df[col] = pd.NA
-    
-                # Parse datoer robust (hvis de allerede er datetime så går dette fint)
+
+                # Datoer som datetime (IKKE strftime!)
                 case_df["Innlevert dato"] = pd.to_datetime(case_df["Service date product received"], errors="coerce")
                 case_df["Statusdato"] = pd.to_datetime(case_df["Service status date"], errors="coerce")
 
-                # Rens tekst
-                case_df["Servicenr"] = (
-                    pd.Series(case_df["Service number"], dtype=object).astype(str).str.strip()
-                    .replace({"": "Ukjent", "nan": "Ukjent", "None": "Ukjent", "NaN": "Ukjent"})
-                )
-                case_df["Status"] = (
-                pd.Series(case_df["Service status"], dtype=object).astype(str).str.strip()
-                .replace({"": "Ukjent", "nan": "Ukjent", "None": "Ukjent", "NaN": "Ukjent"})
-                )
+                case_df["Servicenr"] = _clean_text(case_df["Service number"], unknown="Ukjent")
+                case_df["Status"] = _clean_text(case_df["Service status"], unknown="Ukjent")
 
-                # Velg kolonner + sorter på eldste innlevert først
                 out = case_df[["Servicenr", "Status", "Statusdato", "Innlevert dato"]].copy()
                 out = out.sort_values(["Innlevert dato", "Statusdato"], ascending=[True, True], na_position="last")
 
-                out["Innlevert dato"] = pd.to_datetime(out["Innlevert dato"], errors="coerce").dt.strftime("%d.%m.%Y")
-                out["Statusdato"] = pd.to_datetime(out["Statusdato"], errors="coerce").dt.strftime("%d.%m.%Y")
-
-                # Hvis du vil at tomme datoer skal vises tomt (ikke "NaT")
-                out["Innlevert dato"] = out["Innlevert dato"].fillna("")
-                out["Statusdato"] = out["Statusdato"].fillna("")
-
-                st.dataframe(out, use_container_width=True, hide_index=True)
+                st.dataframe(
+                    out,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Statusdato": st.column_config.DateColumn("Statusdato", format="DD.MM.YYYY"),
+                        "Innlevert dato": st.column_config.DateColumn("Innlevert dato", format="DD.MM.YYYY"),
+                    },
+                )
 
 
 st.markdown("---")
