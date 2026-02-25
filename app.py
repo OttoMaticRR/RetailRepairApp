@@ -402,35 +402,56 @@ if "day" not in st.session_state:
 if "show_datepicker" not in st.session_state:
     st.session_state["show_datepicker"] = False
 
+# Faktisk i dag (Oslo) – brukes til å låse fremover
+_real_today = today_oslo()
+
+# Hvis du har navigert til fremtid ved en feil, clamp tilbake
+if st.session_state["day"] > _real_today:
+    st.session_state["day"] = _real_today
+
 with st.sidebar:
     st.caption("Vis dato")
 
-    # --- Vis dato som tekst (dd.mm.yyyy) ---
-    st.markdown(
-        f"<div style='font-size:1.05rem; font-weight:700; padding: 0.25rem 0.1rem;'>"
-        f"{st.session_state['day']:%d.%m.%Y}</div>",
-        unsafe_allow_html=True,
-    )
+    # Litt CSS for å gjøre pil-knappene kompakte
+    st.markdown("""
+    <style>
+    section[data-testid="stSidebar"] button[kind="secondary"]{
+        padding: 0.15rem 0.35rem !important;
+        min-height: 2.1rem !important;
+        font-weight: 700 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-    # --- Piler: forrige / neste dag ---
-    c_prev, c_next = st.columns(2)
+    # --- Rad: ←  DATO  → ---
+    c_prev, c_date, c_next = st.columns([1, 4, 1], vertical_alignment="center")
+
     with c_prev:
         if st.button("←", use_container_width=True, help="Forrige dag"):
             st.session_state["day"] = st.session_state["day"] - pd.Timedelta(days=1)
             st.rerun()
+
+    with c_date:
+        st.markdown(
+            f"<div style='text-align:center; font-size:1.05rem; font-weight:800;'>"
+            f"{st.session_state['day']:%d.%m.%Y}</div>",
+            unsafe_allow_html=True
+        )
+
     with c_next:
-        if st.button("→", use_container_width=True, help="Neste dag"):
+        is_future = st.session_state["day"] >= _real_today
+        if st.button("→", use_container_width=True, help="Neste dag", disabled=is_future):
             st.session_state["day"] = st.session_state["day"] + pd.Timedelta(days=1)
             st.rerun()
 
     # Litt luft
     st.markdown("<div style='height:0.25rem'></div>", unsafe_allow_html=True)
 
-    # --- Knapper: I dag + Endre (datepicker) ---
+    # --- Rad: I dag + Endre ---
     c_today, c_pick = st.columns(2)
     with c_today:
         if st.button("I dag", use_container_width=True):
-            st.session_state["day"] = today_oslo()
+            st.session_state["day"] = _real_today
             st.rerun()
 
     with c_pick:
@@ -442,6 +463,7 @@ with st.sidebar:
         picked = st.date_input(
             label="",
             value=st.session_state["day"],
+            max_value=_real_today,          # <- hindrer valg i fremtiden
             label_visibility="collapsed",
         )
         if picked != st.session_state["day"]:
